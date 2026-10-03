@@ -37,7 +37,7 @@ const SKILL_RULES: Rule[] = [
   [/html|output|artifact|page/, '🖼️'],
   [/cost|usage|finance|journal|reconcil|sox|audit|variance|statement|close/, '💼'],
   [/health|macos|system/, '🩺'],
-  [/mail|signup|kevin|gmail/, '✉️'],
+  [/mail|signup|gmail/, '✉️'],
   [/pdf/, '📄'],
   [/docx|doc|writ|coauthor/, '📝'],
   [/xlsx|sheet|csv/, '📊'],
