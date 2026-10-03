@@ -1,32 +1,34 @@
 import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Avatar, nameColor, projectEmoji } from '@/components/avatar';
-import { ActivityHeatmap, ChartTip, DailyCostChart, Legend, TokenMixChart } from '@/components/charts';
+import { ActivityHeatmap, ChartTip, DailyCostChart, KindBreakdown, Legend, TokenMixChart, tokenDailyRows } from '@/components/charts';
 import { ErrorState, Meter, MetricToggle, PageHeader, PageSkeleton, Panel, Segmented, Stat, Tip } from '@/components/ui';
 import { useAnalytics } from '@/lib/api';
 import { modelColor } from '@/lib/colors';
 import { int, modelName, pct, plural, shortDay, tokens, usd } from '@/lib/format';
-import { formatMetric, useMetric } from '@/lib/metric';
+import { useMeasure } from '@/lib/metric';
 
 type Range = '7' | '30' | '90' | '365' | 'all';
 
-const sumTokens = (t: { input: number; output: number; write: number; read: number }) => t.input + t.output + t.write + t.read;
+const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 export function AnalyticsPage() {
   const [range, setRange] = useState<Range>('30');
   const { data, error, isLoading } = useAnalytics(range);
-  const [metric] = useMetric();
-  const fmt = formatMetric(metric);
-  const byTokens = metric === 'tokens';
+  const M = useMeasure();
+  const { byTokens, kinds, metric } = M;
+  const fmt = M.format;
   // Rankings follow the chosen measure: the costliest model isn't always the hungriest.
   const models = useMemo(
-    () => [...(data?.models ?? [])].sort((a, b) => (byTokens ? sumTokens(b.tokens) - sumTokens(a.tokens) : b.cost - a.cost)),
-    [data, byTokens],
+    () => [...(data?.models ?? [])].sort((a, b) => M.value(b.cost, b.tokens) - M.value(a.cost, a.tokens)),
+    [data, byTokens, kinds],
   );
   const projects = useMemo(
-    () => [...(data?.projects ?? [])].sort((a, b) => (byTokens ? b.tokens - a.tokens : b.cost - a.cost)),
-    [data, byTokens],
+    () => [...(data?.projects ?? [])].sort((a, b) => M.value(b.cost, b.tok) - M.value(a.cost, a.tok)),
+    [data, byTokens, kinds],
   );
+  const tokenDaily = useMemo(() => (data ? tokenDailyRows(data.daily, data.dayModelTokens, kinds) : []), [data, kinds]);
+  const noun = byTokens ? M.tokenNoun : 'spend';
 
   const controls = (
     <>
@@ -50,26 +52,25 @@ export function AnalyticsPage() {
   if (error || !data) return <ErrorState error={error} />;
   const t = data.totals;
   const days = data.daily.length || 1;
-  const modelValue = (m: (typeof models)[number]) => (byTokens ? sumTokens(m.tokens) : m.cost);
-  const projectValue = (p: (typeof projects)[number]) => (byTokens ? p.tokens : p.cost);
-  const total = byTokens ? t.tokens : t.cost;
+  const modelValue = (m: (typeof models)[number]) => M.value(m.cost, m.tokens);
+  const projectValue = (p: (typeof projects)[number]) => M.value(p.cost, p.tok);
+  const total = M.value(t.cost, t.tok);
   const maxModel = models[0] ? modelValue(models[0]) : 0;
   const maxProject = projects[0] ? projectValue(projects[0]) : 0;
   const maxTool = data.tools[0]?.count ?? 0;
   const c = data.cache;
-  const promptTokens = c.input + c.write + c.read;
   const linesData = data.lines.map((l) => ({ day: l.day, Added: l.added, Removed: -l.removed }));
 
   return (
     <div className="space-y-6">
       <PageHeader title="Analytics" icon="📈" actions={controls}>
         {byTokens
-          ? 'Tokens processed by Claude Code: uncached input, cache writes, cache reads and output.'
+          ? `Counting ${M.tokenNoun}. Pick which kinds count with the chips; each kind is priced differently.`
           : 'API-equivalent cost of your Claude Code usage. On a Pro or Max plan this is the value you consumed, not a bill.'}
       </PageHeader>
 
       <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
-        <Stat label={byTokens ? 'Total tokens' : 'Total spend'} value={fmt(total)} hint={`${fmt(total / days)} a day`} />
+        <Stat label={byTokens ? cap(M.tokenNoun) : 'Total spend'} value={fmt(total)} hint={`${fmt(total / days)} a day`} />
         <Stat label="Sessions" value={int(t.sessions)} hint={t.sessions ? `${fmt(total / t.sessions)} each` : undefined} />
         <Stat label="Prompts" value={int(t.prompts)} hint={t.prompts ? `${fmt(total / t.prompts)} each` : undefined} />
         <Stat label="API requests" value={int(t.requests)} />
@@ -77,18 +78,22 @@ export function AnalyticsPage() {
         <Stat label="Saved by caching" value={usd(t.savings)} hint={`${pct(c.hitRate)} of input from cache`} />
       </div>
 
-      <Panel title={byTokens ? 'Daily tokens by model' : 'Daily spend by model'}>
-        <DailyCostChart data={byTokens ? data.dailyTokens : data.daily} metric={metric} height={300} />
+      <Panel title="Tokens and cost by kind" aside="Anthropic prices each kind differently">
+        <KindBreakdown tok={t.tok} cost={t.costByKind} />
+      </Panel>
+
+      <Panel title={`Daily ${noun} by model`}>
+        <DailyCostChart data={byTokens ? tokenDaily : data.daily} metric={metric} height={300} />
       </Panel>
 
       {byTokens && (
-        <Panel title="Daily tokens by kind" aside="Cache reads cost a tenth of uncached input">
-          <TokenMixChart data={data.tokenMix} height={260} />
+        <Panel title={`Daily ${M.tokenNoun} by kind`}>
+          <TokenMixChart data={data.tokenMix} kinds={kinds} height={260} />
         </Panel>
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Panel title={byTokens ? 'Tokens by model' : 'Spend by model'}>
+        <Panel title={`${cap(noun)} by model`}>
           <ul className="space-y-3.5">
             {models.map((m) => (
               <li key={m.model}>
@@ -104,15 +109,15 @@ export function AnalyticsPage() {
                 </div>
                 <Meter value={modelValue(m)} max={maxModel} color={modelColor(m.model)} />
                 <div className="mt-1 text-[11.5px] text-ink-3">
-                  {int(m.requests)} requests · {byTokens ? usd(m.cost) : `${tokens(sumTokens(m.tokens))} tokens`} · {tokens(m.tokens.output)} output ·{' '}
-                  {tokens(m.tokens.read)} cache reads
+                  {int(m.requests)} requests · {usd(m.cost)} · {tokens(m.tokens.input + m.tokens.write + m.tokens.read + m.tokens.output)} tokens ·{' '}
+                  {tokens(m.tokens.output)} output · {tokens(m.tokens.read)} cache reads
                 </div>
               </li>
             ))}
           </ul>
         </Panel>
 
-        <Panel title={byTokens ? 'Tokens by project' : 'Spend by project'} aside={`${projects.length} projects`}>
+        <Panel title={`${cap(noun)} by project`} aside={`${projects.length} projects`}>
           <ul className="max-h-[360px] space-y-3 overflow-y-auto pr-1">
             {projects.map((p) => (
               <li key={p.cwd}>
@@ -134,13 +139,13 @@ export function AnalyticsPage() {
         </Panel>
       </div>
 
-      <Panel title="When you work" aside={`${byTokens ? 'Tokens' : 'Spend'} by weekday and hour`}>
-        <ActivityHeatmap cells={data.heatmap} metric={metric} />
+      <Panel title="When you work" aside={`${cap(noun)} by weekday and hour`}>
+        <ActivityHeatmap cells={data.heatmap} valueOf={(cell) => M.value(cell.cost, cell.tok)} />
       </Panel>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div>
         <Panel title="Most used tools">
-          <ul className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2">
+          <ul className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2 xl:grid-cols-3">
             {data.tools.map((tool) => (
               <li key={tool.name} className="text-[12.5px]">
                 <div className="mb-1 flex justify-between gap-2">
@@ -153,28 +158,6 @@ export function AnalyticsPage() {
           </ul>
         </Panel>
 
-        <Panel title="Where your input tokens come from">
-          <div className="mb-4 flex h-3 overflow-hidden rounded-full bg-surface-3">
-            {[
-              { k: 'read', v: c.read, color: 'var(--s1)' },
-              { k: 'write', v: c.write, color: 'var(--s2)' },
-              { k: 'input', v: c.input, color: 'var(--s3)' },
-            ].map((seg) => (
-              <div key={seg.k} style={{ width: `${promptTokens ? (seg.v / promptTokens) * 100 : 0}%`, background: seg.color }} className="h-full border-r-2 border-surface last:border-r-0" />
-            ))}
-          </div>
-          <Legend
-            items={[
-              { key: 'read', label: `Cache reads ${tokens(c.read)} (${pct(promptTokens ? c.read / promptTokens : 0)})`, color: 'var(--s1)' },
-              { key: 'write', label: `Cache writes ${tokens(c.write)}`, color: 'var(--s2)' },
-              { key: 'input', label: `Uncached input ${tokens(c.input)}`, color: 'var(--s3)' },
-            ]}
-          />
-          <p className="mt-4 text-[13px] leading-relaxed text-ink-2">
-            Cache reads cost a tenth of the normal input price. Caching saved <span className="num font-semibold text-ink">{usd(c.savings)}</span> in
-            this range. You also generated <span className="num font-semibold text-ink">{tokens(c.output)}</span> output tokens.
-          </p>
-        </Panel>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

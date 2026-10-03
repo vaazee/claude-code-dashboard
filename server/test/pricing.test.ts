@@ -41,3 +41,17 @@ test('without a breakdown, cache writes are treated as 5-minute writes', () => {
   assert.equal(t.write5m, 1_000_000);
   assert.equal(t.write1h, 0);
 });
+
+test('cost split by kind sums to the total cost', async () => {
+  const { costParts } = await import('../../shared/pricing.ts');
+  const t = tokensFromUsage({
+    input_tokens: 1234,
+    output_tokens: 5678,
+    cache_read_input_tokens: 910_111,
+    cache_creation: { ephemeral_5m_input_tokens: 2_000, ephemeral_1h_input_tokens: 30_000 },
+  });
+  const rates = lookupPricing('claude-opus-5', '2026-10-01');
+  const parts = costParts(t, rates);
+  assert.ok(Math.abs(parts.input + parts.write + parts.read + parts.output - costOf(t, rates)) < 1e-12);
+  assert.deepEqual(costParts(t, null), { input: 0, write: 0, read: 0, output: 0 });
+});

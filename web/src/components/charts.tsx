@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { modelColor } from '@/lib/colors';
 import { modelName, shortDay, tokens, usd } from '@/lib/format';
-import { axisMetric, formatMetric, type Metric } from '@/lib/metric';
+import type { TokenKind, TokenTotals } from '@shared/types.ts';
+import { axisMetric, formatMetric, KINDS, sumKinds, type Metric } from '@/lib/metric';
 import { cx } from './ui';
 
 type DailyRow = { day: string; total: number } & Record<string, number | string>;
@@ -161,14 +162,11 @@ export function Sparkbars({
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /** Weekday × hour activity grid on a single-hue sequential ramp. */
-export function ActivityHeatmap({
-  cells,
-  metric = 'cost',
-}: {
-  cells: { dow: number; hour: number; requests: number; cost: number; tokens: number }[];
-  metric?: Metric;
-}) {
-  const value = (c: { cost: number; tokens: number } | undefined) => (c ? (metric === 'cost' ? c.cost : c.tokens) : 0);
+type HeatCell = { dow: number; hour: number; requests: number; cost: number; tok: TokenTotals };
+
+/** Weekday × hour grid shaded by `valueOf` (cost, or the selected token kinds). */
+export function ActivityHeatmap({ cells, valueOf }: { cells: HeatCell[]; valueOf: (c: HeatCell) => number }) {
+  const value = (c: HeatCell | undefined) => (c ? valueOf(c) : 0);
   const [hover, setHover] = useState<{ dow: number; hour: number } | null>(null);
   const grid = new Map(cells.map((c) => [`${c.dow}-${c.hour}`, c]));
   const max = Math.max(...cells.map(value), 0.0001);
@@ -213,7 +211,7 @@ export function ActivityHeatmap({
             <>
               {DOW[hover.dow]} {hover.hour}:00–{hover.hour + 1}:00 ·{' '}
               <span className="num text-ink">{usd(hovered?.cost ?? 0)}</span> ·{' '}
-              <span className="num text-ink">{tokens(hovered?.tokens ?? 0)} tokens</span> ·{' '}
+              <span className="num text-ink">{tokens(sumKinds(hovered?.tok, ['input', 'write', 'read', 'output']))} tokens</span> ·{' '}
               <span className="num text-ink">{hovered?.requests ?? 0} requests</span>
             </>
           ) : (
@@ -232,29 +230,26 @@ export function ActivityHeatmap({
   );
 }
 
-const MIX = [
-  { key: 'read', label: 'Cache reads', color: 'var(--s1)' },
-  { key: 'write', label: 'Cache writes', color: 'var(--s2)' },
-  { key: 'input', label: 'Uncached input', color: 'var(--s3)' },
-  { key: 'output', label: 'Output', color: 'var(--s4)' },
-] as const;
-
-/** Daily tokens stacked by kind: cache reads, cache writes, uncached input, output. */
+/** Daily tokens stacked by kind; only the selected kinds are drawn. */
 export function TokenMixChart({
   data,
+  kinds,
   height = 240,
 }: {
-  data: { day: string; input: number; write: number; read: number; output: number }[];
+  data: ({ day: string } & TokenTotals)[];
+  kinds: TokenKind[];
   height?: number;
 }) {
-  if (!data.some((d) => d.input + d.write + d.read + d.output > 0)) {
+  // Biggest kind at the bottom so the baseline reads cleanly.
+  const MIX = ['read', 'write', 'input', 'output'].flatMap((k) => KINDS.filter((x) => x.key === k && kinds.includes(x.key)));
+  if (!data.some((d) => sumKinds(d, kinds) > 0)) {
     return <div className="grid place-items-center text-[13px] text-ink-3" style={{ height }}>No usage in this range.</div>;
   }
   const tickEvery = Math.max(1, Math.ceil(data.length / 7));
   return (
     <div>
       <div className="mb-3">
-        <Legend items={MIX.map((m) => ({ key: m.key, label: m.label, color: m.color }))} />
+        {MIX.length > 1 && <Legend items={MIX.map((m) => ({ key: m.key, label: m.label, color: m.color }))} />}
       </div>
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }} barCategoryGap="22%">
@@ -277,6 +272,110 @@ export function TokenMixChart({
           ))}
         </BarChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** Turn per-day, per-model token rows into chart rows (every day present), counting `kinds`. */
+export function tokenDailyRows(
+  days: { day: string }[],
+  rows: ({ day: string; model: string } & TokenTotals)[],
+  kinds: TokenKind[],
+): DailyRow[] {
+  const map = new Map<string, DailyRow>(days.map((d) => [d.day, { day: d.day, total: 0 } as DailyRow]));
+  for (const r of rows) {
+    const e = map.get(r.day);
+    if (!e) continue;
+    const v = sumKinds(r, kinds);
+    e[r.model] = ((e[r.model] as number) ?? 0) + v;
+    e.total += v;
+  }
+  return [...map.values()];
+}
+
+/**
+ * The holistic view: how tokens and cost split across the four priced kinds. Cache reads are
+ * most of the tokens but a small share of the cost; output is the reverse.
+ */
+const pctOf = (part: number, total: number) => `${total ? ((part / total) * 100).toFixed(part / total < 0.1 ? 1 : 0) : 0}%`;
+
+export function KindBreakdown({ tok, cost }: { tok: TokenTotals; cost: TokenTotals }) {
+  const totalTok = sumKinds(tok, ['input', 'write', 'read', 'output']);
+  const totalCost = sumKinds(cost, ['input', 'write', 'read', 'output']);
+  const order = ['read', 'write', 'input', 'output'].map((k) => KINDS.find((x) => x.key === k)!);
+  const Bar = ({ label, part, total, fmt }: { label: string; part: (k: TokenKind) => number; total: number; fmt: (n: number) => string }) => (
+    <div>
+      <div className="mb-1 flex justify-between text-[12px] text-ink-3">
+        <span>{label}</span>
+        <span className="num text-ink-2">{fmt(total)}</span>
+      </div>
+      <div className="flex h-4 overflow-hidden rounded-md bg-surface-3">
+        {order.map((k) => {
+          const share = total ? part(k.key) / total : 0;
+          return (
+            <div
+              key={k.key}
+              title={`${k.label}: ${fmt(part(k.key))} (${(share * 100).toFixed(1)}%)`}
+              className="h-full border-r-2 border-surface last:border-r-0"
+              style={{ width: `${share * 100}%`, background: k.color, display: share > 0 ? undefined : 'none' }}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+  return (
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+      <div className="space-y-4">
+        <Bar label="Share of tokens" part={(k) => tok[k]} total={totalTok} fmt={tokens} />
+        <Bar label="Share of cost" part={(k) => cost[k]} total={totalCost} fmt={usd} />
+        <p className="text-[12.5px] leading-relaxed text-ink-3">
+          Cache reads are <span className="num font-medium text-ink-2">{pctOf(tok.read, totalTok)}</span> of your tokens and{' '}
+          <span className="num font-medium text-ink-2">{pctOf(cost.read, totalCost)}</span> of cost. Every reply rereads the conversation so far,
+          mostly from cache at a tenth of the input price. Output is{' '}
+          <span className="num font-medium text-ink-2">{pctOf(tok.output, totalTok)}</span> of tokens but{' '}
+          <span className="num font-medium text-ink-2">{pctOf(cost.output, totalCost)}</span> of cost.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[440px] text-[12.5px]">
+          <thead>
+            <tr className="text-left text-[11.5px] text-ink-3">
+              <th className="pb-2 font-medium">Kind</th>
+              <th className="pb-2 text-right font-medium">Tokens</th>
+              <th className="pb-2 text-right font-medium">Share</th>
+              <th className="pb-2 text-right font-medium">Cost</th>
+              <th className="pb-2 text-right font-medium">Share</th>
+              <th className="pb-2 text-right font-medium" title="Average cost per million tokens of this kind">$ / M</th>
+            </tr>
+          </thead>
+          <tbody>
+            {order.map((k) => (
+              <tr key={k.key} className="border-t border-line" title={k.blurb}>
+                <td className="py-2">
+                  <span className="inline-flex items-center gap-1.5 text-ink">
+                    <span className="size-2.5 rounded-sm" style={{ background: k.color }} aria-hidden />
+                    {k.label}
+                  </span>
+                </td>
+                <td className="num py-2 text-right text-ink">{tokens(tok[k.key])}</td>
+                <td className="num py-2 text-right text-ink-3">{totalTok ? ((tok[k.key] / totalTok) * 100).toFixed(1) : '0.0'}%</td>
+                <td className="num py-2 text-right text-ink">{usd(cost[k.key])}</td>
+                <td className="num py-2 text-right text-ink-3">{totalCost ? ((cost[k.key] / totalCost) * 100).toFixed(1) : '0.0'}%</td>
+                <td className="num py-2 text-right text-ink-2">{tok[k.key] ? `$${((cost[k.key] / tok[k.key]) * 1e6).toFixed(2)}` : '—'}</td>
+              </tr>
+            ))}
+            <tr className="border-t border-line-strong font-medium">
+              <td className="py-2 text-ink">All kinds</td>
+              <td className="num py-2 text-right text-ink">{tokens(totalTok)}</td>
+              <td className="py-2" />
+              <td className="num py-2 text-right text-ink">{usd(totalCost)}</td>
+              <td className="py-2" />
+              <td className="num py-2 text-right text-ink-2">{totalTok ? `$${((totalCost / totalTok) * 1e6).toFixed(2)}` : '—'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

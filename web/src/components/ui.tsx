@@ -4,7 +4,7 @@ import { Search, X } from 'lucide-react';
 import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { PlanetArt } from './art';
 import { IconTile } from './avatar';
-import { useMetric, type Metric } from '@/lib/metric';
+import { KINDS, useMetric, useTokenKinds, type Metric } from '@/lib/metric';
 
 export const cx = clsx;
 
@@ -255,11 +255,15 @@ export function Meter({ value, max, color = 'var(--signal)' }: { value: number; 
   );
 }
 
-/** Cost / Tokens switch. Every chart that reads useMetric() follows it. */
-export function MetricToggle({ className }: { className?: string }) {
+/**
+ * Cost / Tokens switch. In token mode it also offers the four token kinds, so you can count
+ * everything, leave out cache rereads, or look at output alone. Every chart follows it.
+ */
+export function MetricToggle({ className, kinds: showKinds = true }: { className?: string; kinds?: boolean }) {
   const [metric, setMetric] = useMetric();
+  const [kinds, setKinds] = useTokenKinds();
   return (
-    <div className={className}>
+    <div className={cx('flex flex-wrap items-center gap-2', className)}>
       <Segmented<Metric>
         label="Measure charts by"
         value={metric}
@@ -269,6 +273,28 @@ export function MetricToggle({ className }: { className?: string }) {
           { value: 'tokens', label: '# Tokens' },
         ]}
       />
+      {metric === 'tokens' && showKinds && (
+        <div role="group" aria-label="Token kinds to count" className="inline-flex flex-wrap gap-1">
+          {KINDS.map((k) => {
+            const on = kinds.includes(k.key);
+            return (
+              <button
+                key={k.key}
+                aria-pressed={on}
+                title={on && kinds.length === 1 ? 'At least one kind stays selected' : k.blurb}
+                onClick={() => setKinds(on ? kinds.filter((x) => x !== k.key) : [...kinds, k.key])}
+                className={cx(
+                  'inline-flex h-7 items-center gap-1.5 rounded-lg border px-2 text-[12px] transition-colors',
+                  on ? 'border-line-strong bg-surface text-ink' : 'border-dashed border-line text-ink-3 hover:text-ink-2',
+                )}
+              >
+                <span className="size-2 rounded-sm" style={{ background: on ? k.color : 'var(--line-strong)' }} aria-hidden />
+                {k.short}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

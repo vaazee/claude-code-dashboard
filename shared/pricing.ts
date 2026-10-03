@@ -102,6 +102,17 @@ export function costOf(t: UsageTokens, rates: Rates | null): number {
   );
 }
 
+/** Cost split by token kind; the four parts sum to costOf(). */
+export function costParts(t: UsageTokens, rates: Rates | null): { input: number; write: number; read: number; output: number } {
+  if (!rates) return { input: 0, write: 0, read: 0, output: 0 };
+  return {
+    input: (t.input * rates.input) / 1_000_000,
+    write: (t.write5m * rates.write5m + t.write1h * rates.write1h) / 1_000_000,
+    read: (t.read * rates.read) / 1_000_000,
+    output: (t.output * rates.output) / 1_000_000,
+  };
+}
+
 /** What cache reads saved versus paying full input price. */
 export function cacheSavingsOf(t: UsageTokens, rates: Rates | null): number {
   if (!rates) return 0;

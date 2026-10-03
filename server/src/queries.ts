@@ -26,6 +26,12 @@ LEFT JOIN (
 LEFT JOIN (SELECT session_id, COUNT(*) n FROM agents GROUP BY session_id) a ON a.session_id = s.id
 `;
 
+// Token columns summed by kind, and the row → TokenTotals mapping that goes with them.
+const KINDS_SQL = 'SUM(input) AS input, SUM(write5m + write1h) AS write, SUM(read) AS read, SUM(output) AS output';
+const KINDS_SQL_U = 'SUM(u.input) AS input, SUM(u.write5m + u.write1h) AS write, SUM(u.read) AS read, SUM(u.output) AS output';
+const tok = (r: any) => ({ input: r?.input ?? 0, write: r?.write ?? 0, read: r?.read ?? 0, output: r?.output ?? 0 });
+const tokSum = (t: { input: number; write: number; read: number; output: number }) => t.input + t.write + t.read + t.output;
+
 export function projectName(cwd: string | null | undefined): string {
   if (!cwd) return 'unknown';
   if (cwd === HOME) return '~';
@@ -194,7 +200,7 @@ export class Queries {
       (
         this.db
           .prepare(
-            'SELECT day, SUM(cost) cost, SUM(input + output + write5m + write1h + read) tokens, COUNT(*) requests FROM usage WHERE day >= ? GROUP BY day',
+            `SELECT day, SUM(cost) cost, ${KINDS_SQL}, COUNT(*) requests FROM usage WHERE day >= ? GROUP BY day`,
           )
           .all(start) as any[]
       ).map((r) => [r.day, r]),
@@ -202,7 +208,8 @@ export class Queries {
     const daily = Array.from({ length: 30 }, (_, i) => {
       const day = daysAgo(29 - i);
       const r = byDay.get(day);
-      return { day, cost: r?.cost ?? 0, tokens: r?.tokens ?? 0, requests: r?.requests ?? 0 };
+      const t = tok(r);
+      return { day, cost: r?.cost ?? 0, tokens: tokSum(t), tok: t, requests: r?.requests ?? 0 };
     });
 
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -277,9 +284,11 @@ export class Queries {
       .all(id) as any[];
     const timeline = (
       this.db
-        .prepare('SELECT ts, cost, output, (input + output + write5m + write1h + read) tokens, model, agent_id FROM usage WHERE session_id = ? ORDER BY ts')
+        .prepare(
+          'SELECT ts, cost, input, write5m + write1h AS write, read, output, model, agent_id FROM usage WHERE session_id = ? ORDER BY ts',
+        )
         .all(id) as any[]
-    ).map((r) => ({ ts: r.ts, cost: r.cost, tokens: r.tokens, output: r.output, model: r.model, agentId: r.agent_id }));
+    ).map((r) => ({ ts: r.ts, cost: r.cost, tok: tok(r), output: r.output, model: r.model, agentId: r.agent_id }));
     return { ...base, byModel, tools, files, agents, timeline };
   }
 
@@ -301,11 +310,10 @@ export class Queries {
     ).map(modelRow);
 
     const dailyRows = this.db
-      .prepare('SELECT day, model, SUM(cost) cost, SUM(input + output + write5m + write1h + read) tokens FROM usage WHERE day >= ? GROUP BY day, model ORDER BY day')
+      .prepare(`SELECT day, model, SUM(cost) cost, ${KINDS_SQL} FROM usage WHERE day >= ? GROUP BY day, model ORDER BY day`)
       .all(lo) as any[];
     type DayRow = Record<string, number | string> & { day: string; total: number };
     const dayMap = new Map<string, DayRow>();
-    const tokMap = new Map<string, DayRow>();
     // Fill every day in range so the chart has no gaps.
     const firstDay = from ?? dailyRows[0]?.day ?? to;
     const rangeDays: string[] = [];
@@ -313,19 +321,14 @@ export class Queries {
       const key = localDateOf(d.getTime());
       rangeDays.push(key);
       dayMap.set(key, { day: key, total: 0 });
-      tokMap.set(key, { day: key, total: 0 });
     }
     for (const r of dailyRows) {
-      for (const [map, v] of [
-        [dayMap, r.cost],
-        [tokMap, r.tokens],
-      ] as const) {
-        const e: DayRow = map.get(r.day) ?? { day: r.day, total: 0 };
-        e[r.model] = ((e[r.model] as number) ?? 0) + v;
-        e.total += v;
-        map.set(r.day, e);
-      }
+      const e: DayRow = dayMap.get(r.day) ?? { day: r.day, total: 0 };
+      e[r.model] = ((e[r.model] as number) ?? 0) + r.cost;
+      e.total += r.cost;
+      dayMap.set(r.day, e);
     }
+    const dayModelTokens = dailyRows.map((r) => ({ day: r.day, model: r.model, ...tok(r) }));
     const mixRows = new Map(
       (
         this.db
@@ -343,7 +346,7 @@ export class Queries {
 
     const projectRows = this.db
       .prepare(
-        `SELECT s.cwd, SUM(u.cost) cost, SUM(u.input + u.output + u.write5m + u.write1h + u.read) tokens,
+        `SELECT s.cwd, SUM(u.cost) cost, ${KINDS_SQL_U},
                 COUNT(DISTINCT s.id) sessions, MAX(s.last_at) last_at
          FROM usage u JOIN sessions s ON s.id = u.session_id
          WHERE u.day >= ? GROUP BY s.cwd ORDER BY cost DESC`,
@@ -354,7 +357,7 @@ export class Queries {
       project: projectName(r.cwd),
       cwd: tildify(r.cwd),
       cost: r.cost,
-      tokens: r.tokens,
+      tok: tok(r),
       sessions: r.sessions,
       lastAt: r.last_at,
     }));
@@ -364,11 +367,11 @@ export class Queries {
         .prepare(
           `SELECT CAST(strftime('%w', ts / 1000, 'unixepoch', 'localtime') AS INTEGER) dow,
                   CAST(strftime('%H', ts / 1000, 'unixepoch', 'localtime') AS INTEGER) hour,
-                  COUNT(*) requests, SUM(cost) cost, SUM(input + output + write5m + write1h + read) tokens
+                  COUNT(*) requests, SUM(cost) cost, ${KINDS_SQL}
            FROM usage WHERE day >= ? GROUP BY dow, hour`,
         )
         .all(lo) as any[]
-    ).map((r) => ({ dow: r.dow, hour: r.hour, requests: r.requests, cost: r.cost, tokens: r.tokens }));
+    ).map((r) => ({ dow: r.dow, hour: r.hour, requests: r.requests, cost: r.cost, tok: tok(r) }));
 
     const tools = this.db
       .prepare('SELECT name, COUNT(*) count FROM tools WHERE day >= ? GROUP BY name ORDER BY count DESC LIMIT 25')
@@ -378,6 +381,8 @@ export class Queries {
       .prepare(
         `SELECT COALESCE(SUM(input), 0) input, COALESCE(SUM(write5m + write1h), 0) write, COALESCE(SUM(read), 0) read,
                 COALESCE(SUM(output), 0) output, COALESCE(SUM(savings), 0) savings, COALESCE(SUM(cost), 0) cost,
+                COALESCE(SUM(cost_input), 0) c_input, COALESCE(SUM(cost_write), 0) c_write,
+                COALESCE(SUM(cost_read), 0) c_read, COALESCE(SUM(cost_output), 0) c_output,
                 COUNT(*) requests
          FROM usage WHERE day >= ?`,
       )
@@ -426,9 +431,11 @@ export class Queries {
         toolCalls,
         savings: c.savings,
         tokens: c.input + c.write + c.read + c.output,
+        tok: tok(c),
+        costByKind: { input: c.c_input, write: c.c_write, read: c.c_read, output: c.c_output },
       },
       daily: [...dayMap.values()].sort((a, b) => a.day.localeCompare(b.day)),
-      dailyTokens: [...tokMap.values()].sort((a, b) => a.day.localeCompare(b.day)),
+      dayModelTokens,
       tokenMix,
       models,
       projects,
@@ -451,19 +458,20 @@ export class Queries {
   projectRollups(): Array<{
     cwd: string;
     cost: number;
-    tokens: number;
+    tok: { input: number; write: number; read: number; output: number };
     sessions: number;
     prompts: number;
     lastAt: number | null;
     firstAt: number | null;
     daily: Map<string, number>;
-    dailyTokens: Map<string, number>;
+    dailyTok: Map<string, { input: number; write: number; read: number; output: number }>;
   }> {
     const rows = this.db
       .prepare(
         `SELECT s.cwd, COUNT(*) sessions, SUM(s.prompts) prompts, MAX(s.last_at) last_at, MIN(s.started_at) first_at,
-                COALESCE(SUM(u.cost), 0) cost, COALESCE(SUM(u.tokens), 0) tokens
-         FROM sessions s LEFT JOIN (SELECT session_id, SUM(cost) cost, SUM(input + output + write5m + write1h + read) tokens FROM usage GROUP BY session_id) u ON u.session_id = s.id
+                COALESCE(SUM(u.cost), 0) cost, COALESCE(SUM(u.input), 0) input, COALESCE(SUM(u.write), 0) write,
+                COALESCE(SUM(u.read), 0) read, COALESCE(SUM(u.output), 0) output
+         FROM sessions s LEFT JOIN (SELECT session_id, SUM(cost) cost, ${KINDS_SQL} FROM usage GROUP BY session_id) u ON u.session_id = s.id
          WHERE s.cwd IS NOT NULL AND (s.prompts > 0 OR u.cost > 0)
          GROUP BY s.cwd ORDER BY last_at DESC`,
       )
@@ -471,29 +479,29 @@ export class Queries {
     const since = localDateOf(Date.now() - 13 * 86400000);
     const dailyRows = this.db
       .prepare(
-        `SELECT s.cwd, u.day, SUM(u.cost) cost, SUM(u.input + u.output + u.write5m + u.write1h + u.read) tokens
+        `SELECT s.cwd, u.day, SUM(u.cost) cost, ${KINDS_SQL_U}
          FROM usage u JOIN sessions s ON s.id = u.session_id
          WHERE u.day >= ? GROUP BY s.cwd, u.day`,
       )
       .all(since) as any[];
     const daily = new Map<string, Map<string, number>>();
-    const dailyTokens = new Map<string, Map<string, number>>();
+    const dailyTok = new Map<string, Map<string, ReturnType<typeof tok>>>();
     for (const r of dailyRows) {
       if (!daily.has(r.cwd)) daily.set(r.cwd, new Map());
-      if (!dailyTokens.has(r.cwd)) dailyTokens.set(r.cwd, new Map());
+      if (!dailyTok.has(r.cwd)) dailyTok.set(r.cwd, new Map());
       daily.get(r.cwd)!.set(r.day, r.cost);
-      dailyTokens.get(r.cwd)!.set(r.day, r.tokens);
+      dailyTok.get(r.cwd)!.set(r.day, tok(r));
     }
     return rows.map((r) => ({
       cwd: r.cwd,
       cost: r.cost,
-      tokens: r.tokens,
+      tok: tok(r),
       sessions: r.sessions,
       prompts: r.prompts,
       lastAt: r.last_at,
       firstAt: r.first_at,
       daily: daily.get(r.cwd) ?? new Map(),
-      dailyTokens: dailyTokens.get(r.cwd) ?? new Map(),
+      dailyTok: dailyTok.get(r.cwd) ?? new Map(),
     }));
   }
 

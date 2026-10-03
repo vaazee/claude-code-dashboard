@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
-import { costOf, cacheSavingsOf, localDateOf, lookupPricing, tokensFromUsage } from '../../../shared/pricing.ts';
+import { costOf, costParts, cacheSavingsOf, localDateOf, lookupPricing, tokensFromUsage } from '../../../shared/pricing.ts';
 import { tx } from '../db.ts';
 import { PROJECTS_DIR } from '../paths.ts';
 import { describeTool, promptOf } from './parse.ts';
@@ -130,13 +130,15 @@ export class TranscriptIndex {
            resumed_from = COALESCE(sessions.resumed_from, excluded.resumed_from)`,
       ),
       upsertUsage: db.prepare(
-        `INSERT INTO usage(key, session_id, agent_id, file, ts, day, model, speed, input, output, write5m, write1h, read, cost, savings, priced)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO usage(key, session_id, agent_id, file, ts, day, model, speed, input, output, write5m, write1h, read,
+           cost, cost_input, cost_write, cost_read, cost_output, savings, priced)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(key) DO UPDATE SET
            session_id = excluded.session_id, agent_id = excluded.agent_id, file = excluded.file, ts = excluded.ts,
            day = excluded.day, model = excluded.model, speed = excluded.speed, input = excluded.input,
            output = excluded.output, write5m = excluded.write5m, write1h = excluded.write1h, read = excluded.read,
-           cost = excluded.cost, savings = excluded.savings, priced = excluded.priced
+           cost = excluded.cost, cost_input = excluded.cost_input, cost_write = excluded.cost_write,
+           cost_read = excluded.cost_read, cost_output = excluded.cost_output, savings = excluded.savings, priced = excluded.priced
          WHERE excluded.output >= usage.output`,
       ),
       insertTool: db.prepare(
@@ -347,6 +349,7 @@ export class TranscriptIndex {
       const tokens = tokensFromUsage(msg.usage);
       const speed = msg.usage.speed ?? 'standard';
       const rates = lookupPricing(model, day, speed);
+      const parts = costParts(tokens, rates);
       const key = msg.id || rec.requestId ? `${msg.id ?? ''}|${rec.requestId ?? ''}` : `${ref.path}:${lineOffset}`;
       this.q.upsertUsage.run(
         key,
@@ -363,6 +366,10 @@ export class TranscriptIndex {
         tokens.write1h,
         tokens.read,
         costOf(tokens, rates),
+        parts.input,
+        parts.write,
+        parts.read,
+        parts.output,
         cacheSavingsOf(tokens, rates),
         rates ? 1 : 0,
       );

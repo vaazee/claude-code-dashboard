@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { DATA_DIR, DB_PATH } from './paths.ts';
 
 // Bump when the schema or the parser's output changes; the cache is rebuilt from transcripts.
-const SCHEMA_VERSION = '5';
+const SCHEMA_VERSION = '6';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
@@ -65,6 +65,11 @@ CREATE TABLE IF NOT EXISTS usage (
   write1h INTEGER NOT NULL,
   read INTEGER NOT NULL,
   cost REAL NOT NULL,
+  -- cost split by token kind (sums to cost)
+  cost_input REAL NOT NULL DEFAULT 0,
+  cost_write REAL NOT NULL DEFAULT 0,
+  cost_read REAL NOT NULL DEFAULT 0,
+  cost_output REAL NOT NULL DEFAULT 0,
   savings REAL NOT NULL,
   priced INTEGER NOT NULL
 );

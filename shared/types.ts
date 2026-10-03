@@ -1,6 +1,8 @@
 // API contract shared by server and web.
 
 export type TokenTotals = { input: number; output: number; write: number; read: number };
+/** The four token kinds Anthropic prices separately. */
+export type TokenKind = keyof TokenTotals;
 
 export type LiveInfo = {
   pid: number;
@@ -45,7 +47,7 @@ export type SessionSummary = {
   continuedIn: { id: string; title: string }[];
 };
 
-export type DailyPoint = { day: string; cost: number; tokens: number; requests: number };
+export type DailyPoint = { day: string; cost: number; tokens: number; tok: TokenTotals; requests: number };
 
 export type Overview = {
   kpis: {
@@ -74,7 +76,7 @@ export type SessionDetail = SessionSummary & {
   tools: { name: string; count: number }[];
   files: { path: string; reads: number; edits: number; added: number; removed: number }[];
   agents: { id: string; type: string | null; description: string | null; cost: number; requests: number }[];
-  timeline: { ts: number; cost: number; tokens: number; output: number; model: string; agentId: string | null }[];
+  timeline: { ts: number; cost: number; tok: TokenTotals; output: number; model: string; agentId: string | null }[];
 };
 
 export type ToolResult = { text: string; isError: boolean; truncated: boolean };
@@ -100,15 +102,27 @@ export type Transcript = { items: TranscriptItem[]; truncated: boolean };
 
 export type Analytics = {
   range: { from: string | null; to: string };
-  totals: { cost: number; tokens: number; sessions: number; requests: number; prompts: number; toolCalls: number; savings: number };
-  /** Per-day value by model; `daily` is cost in USD, `dailyTokens` is tokens (input + cache + output). */
+  totals: {
+    cost: number;
+    tokens: number;
+    tok: TokenTotals;
+    /** Cost split by token kind; sums to `cost`. */
+    costByKind: TokenTotals;
+    sessions: number;
+    requests: number;
+    prompts: number;
+    toolCalls: number;
+    savings: number;
+  };
+  /** Per-day cost (USD) by model, with every day in range present. */
   daily: Array<{ day: string; total: number } & Record<string, number | string>>;
-  dailyTokens: Array<{ day: string; total: number } & Record<string, number | string>>;
+  /** Per-day, per-model tokens by kind (sparse: only days with usage). */
+  dayModelTokens: Array<{ day: string; model: string } & TokenTotals>;
   /** Per-day tokens split by kind. */
   tokenMix: { day: string; input: number; write: number; read: number; output: number }[];
   models: ModelRow[];
-  projects: { project: string; cwd: string; cost: number; tokens: number; sessions: number; lastAt: number | null }[];
-  heatmap: { dow: number; hour: number; requests: number; cost: number; tokens: number }[];
+  projects: { project: string; cwd: string; cost: number; tok: TokenTotals; sessions: number; lastAt: number | null }[];
+  heatmap: { dow: number; hour: number; requests: number; cost: number; tok: TokenTotals }[];
   tools: { name: string; count: number }[];
   cache: { input: number; write: number; read: number; output: number; savings: number; hitRate: number };
   lines: { day: string; added: number; removed: number }[];
@@ -120,7 +134,7 @@ export type ProjectInfo = {
   cwd: string;
   cwdAbs: string;
   cost: number;
-  tokens: number;
+  tok: TokenTotals;
   sessions: number;
   prompts: number;
   lastAt: number | null;
@@ -130,7 +144,7 @@ export type ProjectInfo = {
   claudeMd: string[];
   memoryFiles: number;
   daily: number[]; // last 14 days cost
-  dailyTokens: number[]; // last 14 days tokens
+  dailyTok: TokenTotals[]; // last 14 days tokens by kind
 };
 
 export type SkillInfo = {

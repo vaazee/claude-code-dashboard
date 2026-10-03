@@ -156,7 +156,7 @@ Per record:
 |---|---|---|
 | `files` | path | Ingest progress: size, mtime and byte offset per transcript |
 | `sessions` | id | One row per session: metadata, titles, first and last prompt, times, prompt count, `resumed_from` |
-| `usage` | `message.id\|requestId` | Deduplicated, priced API requests: tokens by kind, cost, cache savings, local `day` |
+| `usage` | `message.id\|requestId` | Deduplicated, priced API requests: tokens by kind, cost (plus `cost_input/write/read/output`, which sum to it), cache savings, local `day` |
 | `tools` | tool_use id | Every tool call with a short detail and line counts |
 | `prompts` | record uuid | Deduplicated prompts (see §6.4) |
 | `agents` | agent id | Subagents: type, description and file |
@@ -262,6 +262,7 @@ Masking works on patterns, so it's best-effort. That's why config is shown read-
 
 - **Prices:** `shared/pricing.ts` is a direct port of the `usage-cost` skill: per-model input, 5-minute cache write, 1-hour cache write, cache read and output rates per million tokens. A model id without its own entry falls back to the longest matching prefix, so `claude-haiku-4-5-20251001` is priced as `claude-haiku-4-5`. Sonnet 5's introductory pricing switches to standard rates by local date. Fast mode uses premium rates where they're defined.
 - **Cache writes** use the per-request 5m and 1h breakdown when it's present, and are treated as 5-minute writes when it isn't.
+- **Cost by kind:** each request's cost is also stored split across uncached input, cache writes, cache reads and output (`costParts`, which sum exactly to the total). This drives the tokens-vs-cost breakdown: in typical use cache reads are about 97% of tokens but around half of cost, and output is under 1% of tokens but over a fifth of cost.
 - **Cache savings** are `cache_read × (input price − read price)`: what caching saved compared with paying the full input price.
 - **Parity:** daily totals from top-level transcripts (`usage WHERE agent_id IS NULL`) match `python3 ~/.claude/skills/usage-cost/scripts/usage_cost.py --all --json` to the cent. ccdash also counts subagent usage, which the Python script doesn't read.
 - **Meaning:** these are API-equivalent prices. On a Pro or Max plan they show the value used, not a bill. Claude Code's own `cost-state.totalCostUSD` is kept as a cross-check and shown when it differs by more than 2%.
@@ -284,7 +285,11 @@ Themes are data, not CSS files. Each entry in `lib/themes.ts` defines surfaces, 
 - The resolved theme is also saved to `localStorage['ccdash-paint']`. An inline script in `index.html` applies it **before first paint**, so there's no flash of the wrong theme.
 - Appearance options: click a theme to apply it; turn on "Match macOS light and dark" to use separate light and dark picks; turn animations off. Turning animations off and the OS reduced-motion setting both stop all ambient animation (CSS, SVG and `motion`).
 
-### 8.3 Color for data
+### 8.3 Cost and token views
+
+`lib/metric.ts` holds one setting shared by every chart: **cost** or **tokens**, and in token mode, which of the four kinds count. It's an external store read with `useSyncExternalStore` and saved in `localStorage`, so flipping it on one page flips every chart. The server returns token figures **by kind** (`TokenTotals`) rather than as a single total, and the client sums the selected kinds (`useMeasure().value(cost, tok)`). That lets one payload serve "all tokens", "excluding cache reads" and "output only" without another request.
+
+### 8.4 Color for data
 
 Chart colors follow the dataviz skill's rules and are kept separate from theme colors:
 - **Categorical series** (`--s1…--s8`) and **status** colors (`--good`, `--warning`, `--critical`) come from the light or dark **base**, not the theme. They're a palette validated for colorblind separation, so a theme can't break it.
@@ -292,7 +297,7 @@ Chart colors follow the dataviz skill's rules and are kept separate from theme c
 - **Sequential** encodings (the heatmap) use one hue, the theme's `accent2`, mixed toward the surface in steps.
 - Status is never color alone: Working and Waiting each come with an icon and a label.
 
-### 8.4 Visual language
+### 8.5 Visual language
 
 - **Orbit hero:** each live session is a planet around a sun. Working sessions travel their ring (`animateMotion`), waiting ones hold still with an amber pulse, and planet size grows with spend.
 - **Live lanes:** a status ring (an orbiting arc while busy, a breathing halo while idle), a ticking uptime clock and the current activity.
