@@ -28,19 +28,25 @@ Dashboard: $URL   Log: $LOG_FILE
 EOF
 }
 
+# True if the pid is alive and is a ccdash server. A stale pid file (after a crash
+# or reboot) can point at an unrelated process, which must never be signalled.
+is_ccdash() {
+  [ -n "$1" ] && kill -0 "$1" 2>/dev/null && ps -o command= -p "$1" 2>/dev/null | grep -q "server/src/index.ts"
+}
+
 # Prints the server's pid if it is running. Falls back to whatever ccdash process
 # holds the port, so a server started some other way can still be stopped.
 server_pid() {
   if [ -f "$PID_FILE" ]; then
     pid="$(cat "$PID_FILE")"
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    if is_ccdash "$pid"; then
       echo "$pid"
       return 0
     fi
     rm -f "$PID_FILE"
   fi
   for pid in $(lsof -ti "tcp:$PORT" -sTCP:LISTEN 2>/dev/null); do
-    if ps -o command= -p "$pid" | grep -q "server/src/index.ts"; then
+    if is_ccdash "$pid"; then
       echo "$pid"
       return 0
     fi
@@ -99,7 +105,7 @@ stop() {
     sleep 0.2
     i=$((i + 1))
   done
-  if kill -0 "$pid" 2>/dev/null; then kill -9 "$pid"; fi
+  if is_ccdash "$pid"; then kill -9 "$pid"; fi
   rm -f "$PID_FILE"
   echo "ccdash stopped"
 }

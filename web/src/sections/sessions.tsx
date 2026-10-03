@@ -7,10 +7,10 @@ import { StatusLabel } from '@/components/live';
 import { Button, cx, Empty, ErrorState, PageHeader, PageSkeleton, SearchInput, Segmented, Tip } from '@/components/ui';
 import { useSessions } from '@/lib/api';
 import { modelColor } from '@/lib/colors';
-import { dateTime, duration, int, modelName, tokens, usd } from '@/lib/format';
+import { ago, dateTime, duration, int, modelName, tokens, usd } from '@/lib/format';
 
 type Range = '1' | '7' | '30' | '90' | 'all';
-type Sort = 'recent' | 'cost' | 'duration' | 'prompts';
+type Sort = 'recent' | 'started' | 'cost' | 'duration' | 'prompts';
 type View = { name: string; q: string; range: Range; project: string; liveOnly: boolean; sort: Sort };
 
 const VIEWS_KEY = 'ccdash-session-views';
@@ -63,6 +63,7 @@ export function SessionsPage() {
     const dur = (s: SessionSummary) => (s.lastAt ?? 0) - (s.startedAt ?? 0);
     const by: Record<Sort, (a: SessionSummary, b: SessionSummary) => number> = {
       recent: (a, b) => (b.lastAt ?? 0) - (a.lastAt ?? 0),
+      started: (a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0),
       cost: (a, b) => b.cost - a.cost,
       duration: (a, b) => dur(b) - dur(a),
       prompts: (a, b) => b.prompts - a.prompts,
@@ -161,13 +162,14 @@ export function SessionsPage() {
         <Empty title="No sessions match these filters">Clear the search or widen the time range.</Empty>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-          <table className="w-full min-w-[860px] text-left text-[13px]">
+          <table className="w-full min-w-[920px] text-left text-[13px]">
             <thead>
               <tr className="border-b border-line text-[12px] text-ink-3">
                 <th className="px-4 py-2.5 font-medium">Session</th>
                 <th className="px-3 py-2.5 font-medium">Project</th>
                 <th className="px-3 py-2.5 font-medium">Models</th>
-                <SortTh label="Started" active={sort === 'recent'} onClick={() => setSort('recent')} />
+                <SortTh label="Last active" active={sort === 'recent'} onClick={() => setSort('recent')} />
+                <SortTh label="Started" active={sort === 'started'} onClick={() => setSort('started')} />
                 <SortTh label="Duration" active={sort === 'duration'} onClick={() => setSort('duration')} align="right" />
                 <SortTh label="Prompts" active={sort === 'prompts'} onClick={() => setSort('prompts')} align="right" />
                 <SortTh label="Cost" active={sort === 'cost'} onClick={() => setSort('cost')} align="right" />
@@ -176,7 +178,7 @@ export function SessionsPage() {
             <tbody>
               {rows.slice(0, limit).map((s) => (
                 <tr key={s.id} className="group border-b border-line last:border-b-0 hover:bg-surface-2">
-                  <td className="max-w-[420px] px-4 py-2.5">
+                  <td className="max-w-[320px] px-4 py-2.5">
                     <Link to="/sessions/$id" params={{ id: s.id }} className="block">
                       <div className="flex items-center gap-2">
                         <span className="truncate font-medium text-ink group-hover:text-signal">{s.title}</span>
@@ -209,6 +211,9 @@ export function SessionsPage() {
                         </span>
                       ))}
                     </div>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-ink-2" title={dateTime(s.lastAt)}>
+                    {s.live ? 'now' : ago(s.lastAt)}
                   </td>
                   <td className="num whitespace-nowrap px-3 py-2.5 text-ink-2">{dateTime(s.startedAt)}</td>
                   <td className="num whitespace-nowrap px-3 py-2.5 text-right text-ink-2">

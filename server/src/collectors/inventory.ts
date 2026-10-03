@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { Inventory, McpServerInfo, PluginInfo, SkillInfo } from '../../../shared/types.ts';
 import { exists, frontmatter, listDir, readJson, readText } from '../lib/fsx.ts';
-import { redactString } from '../lib/redact.ts';
+import { redactString, redactUrl } from '../lib/redact.ts';
 import { mcpParts } from '../ingest/parse.ts';
 import { CLAUDE_DIR, CLAUDE_JSON, HOME, tildify } from '../paths.ts';
 import type { Queries } from '../queries.ts';
@@ -168,7 +168,11 @@ function buildMcp(q: Queries, cj: any): McpServerInfo[] {
   const servers = new Map<string, McpServerInfo>();
   const add = (name: string, scope: string, cfg: any) => {
     if (servers.has(name)) return;
-    const command = cfg?.command ? redactString([cfg.command, ...(cfg.args ?? [])].join(' ')) : cfg?.url ?? null;
+    const command = cfg?.command
+      ? redactString([cfg.command, ...(cfg.args ?? [])].join(' '))
+      : typeof cfg?.url === 'string'
+        ? redactUrl(cfg.url)
+        : null;
     servers.set(name, {
       name,
       scope,

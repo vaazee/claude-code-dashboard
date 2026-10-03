@@ -144,10 +144,20 @@ export class TranscriptIndex {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ),
       insertAgent: db.prepare(
-        'INSERT OR IGNORE INTO agents(id, session_id, agent_type, description, file) VALUES (?, ?, ?, ?, ?)',
+        `INSERT INTO agents(id, session_id, agent_type, description, file) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           agent_type = COALESCE(agents.agent_type, excluded.agent_type),
+           description = COALESCE(agents.description, excluded.description)`,
       ),
-      filesOfSession: db.prepare('SELECT path FROM files WHERE session_id = ?'),
-      insertPrompt: db.prepare('INSERT OR IGNORE INTO prompts(uuid, session_id, ts) VALUES (?, ?, ?)'),
+      insertPrompt: db.prepare('INSERT OR IGNORE INTO prompts(uuid, session_id, file, ts) VALUES (?, ?, ?, ?)'),
+      agentsMissingMeta: db.prepare('SELECT id, session_id, file FROM agents WHERE agent_type IS NULL OR description IS NULL'),
+      // Every file that credited rows to a session: its own files plus resumed copies elsewhere.
+      contributingFiles: db.prepare(
+        `SELECT path FROM files WHERE session_id = ?
+         UNION SELECT file FROM usage WHERE session_id = ?
+         UNION SELECT file FROM tools WHERE session_id = ?
+         UNION SELECT file FROM prompts WHERE session_id = ?`,
+      ),
       countPrompts: db.prepare('UPDATE sessions SET prompts = (SELECT COUNT(*) FROM prompts WHERE session_id = ?) WHERE id = ?'),
     };
   }
@@ -157,6 +167,10 @@ export class TranscriptIndex {
     const changed = new Set<string>();
     for (const ref of listTranscripts()) {
       if (this.ingest(ref)) changed.add(ref.sessionId);
+    }
+    // A subagent's .meta.json can land after its transcript was first read; pick it up now.
+    for (const a of this.q.agentsMissingMeta.all() as { id: string; session_id: string; file: string }[]) {
+      if (this.recordAgent({ path: a.file, sessionId: a.session_id, agentId: a.id, projectDir: '' })) changed.add(a.session_id);
     }
     return changed;
   }
@@ -172,13 +186,14 @@ export class TranscriptIndex {
     const row = this.q.getFile.get(ref.path) as { size: number; mtime: number; offset: number } | undefined;
     if (row && row.size === st.size && row.mtime === st.mtimeMs) return false;
     if (row && st.size < row.offset) {
-      // Rewritten or truncated: rebuild the whole session from scratch.
-      this.resetSession(ref.sessionId);
-      for (const r of this.q.filesOfSession.all(ref.sessionId) as { path: string }[]) {
-        const other = refForPath(r.path);
+      // Rewritten or truncated: rebuild the session from every file that credited rows to it,
+      // including resumed copies in other sessions' files. Re-reading a file is idempotent.
+      for (const path of this.resetSession(ref.sessionId)) {
+        const other = refForPath(path);
         if (other && other.path !== ref.path) this.ingest(other);
       }
-      return this.ingest(ref) || true;
+      this.ingest(ref);
+      return true;
     }
     const start = row?.offset ?? 0;
     const length = st.size - start;
@@ -197,29 +212,36 @@ export class TranscriptIndex {
     const newOffset = start + complete.length;
 
     tx(this.db, () => {
-      if (!row && ref.agentId) this.recordAgent(ref);
+      if (ref.agentId) this.recordAgent(ref);
       if (complete.length) this.processChunk(ref, complete.toString('utf8'), start);
       this.q.putFile.run(ref.path, ref.sessionId, ref.agentId, st.size, st.mtimeMs, newOffset);
     });
     return complete.length > 0 || !row;
   }
 
-  private resetSession(sessionId: string) {
-    tx(this.db, () => {
+  /** Drop everything credited to a session and mark its contributing files for a full re-read. */
+  private resetSession(sessionId: string): string[] {
+    return tx(this.db, () => {
+      const files = (this.q.contributingFiles.all(sessionId, sessionId, sessionId, sessionId) as { path: string }[]).map((r) => r.path);
       for (const t of ['usage', 'tools', 'agents', 'prompts']) {
         this.db.prepare(`DELETE FROM ${t} WHERE session_id = ?`).run(sessionId);
       }
       this.db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
-      this.db.prepare('UPDATE files SET size = 0, mtime = 0, offset = 0 WHERE session_id = ?').run(sessionId);
+      const resetFile = this.db.prepare('UPDATE files SET size = 0, mtime = 0, offset = 0 WHERE path = ?');
+      for (const f of files) resetFile.run(f);
+      return files;
     });
   }
 
-  private recordAgent(ref: FileRef) {
+  /** Upsert a subagent row; returns true if its type or description was newly filled in. */
+  private recordAgent(ref: FileRef): boolean {
     let meta: any = {};
     try {
       meta = JSON.parse(fs.readFileSync(ref.path.replace(/\.jsonl$/, '.meta.json'), 'utf8'));
     } catch {}
+    const before = this.db.prepare('SELECT agent_type, description FROM agents WHERE id = ?').get(ref.agentId) as any;
     this.q.insertAgent.run(ref.agentId, ref.sessionId, meta.agentType ?? null, meta.description ?? null, ref.path);
+    return !before || (!before.agent_type && !!meta.agentType) || (!before.description && !!meta.description);
   }
 
   private processChunk(ref: FileRef, text: string, baseOffset: number) {
@@ -280,7 +302,7 @@ export class TranscriptIndex {
             const p = promptOf(rec);
             if (p) {
               // Keyed by record uuid, so a prompt copied into a resumed file is counted once.
-              this.q.insertPrompt.run(rec.uuid ?? `${ref.path}:${lineOffset}`, sid, Number.isFinite(ts) ? ts : null);
+              this.q.insertPrompt.run(rec.uuid ?? `${ref.path}:${lineOffset}`, sid, ref.path, Number.isFinite(ts) ? ts : null);
               if (!p.command) {
                 patch.firstPrompt ??= p.text.slice(0, 2000);
                 patch.lastPrompt = p.text.slice(0, 2000);

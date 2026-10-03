@@ -12,15 +12,38 @@ const SECRET_VALUE = [
 
 export const MASK = '••••••••';
 
+// A name that suggests its value is secret: api_key, api-key, x-auth-token, GITHUB_TOKEN, ...
+// "author" and "tokens" in ordinary prose are deliberately not matched.
+const SECRET_NAME =
+  '[A-Za-z0-9_-]*(?:TOKEN(?!S\\b)|SECRET|PASSWORD|PASSWD|API[_-]?KEY|APIKEY|AUTH(?:ORIZATION)?(?![A-Z])|CREDENTIAL|PRIVATE[_-]?KEY)[A-Za-z0-9_-]*';
+
 export function redactString(s: string): string {
   let out = s;
   for (const re of SECRET_VALUE) out = out.replace(re, MASK);
-  // KEY=value and "key": "value" forms inside free text (env lines, shell scripts, CLI args)
+  // Authorization: Bearer <token>. Runs before the key: value rule, which would only mask the word "Bearer".
+  out = out.replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/g, `$1 ${MASK}`);
+  // user:password@host in URLs
+  out = out.replace(/(\b[a-z][a-z0-9+.-]*:\/\/[^\s:@/]+):([^\s@/]+)@/gi, `$1:${MASK}@`);
+  // KEY=value, key: value and ?api_key=value forms (env lines, scripts, CLI args, query strings)
   out = out.replace(
-    /\b([A-Za-z0-9_]*(?:TOKEN|SECRET|PASSWORD|API_?KEY|AUTH)[A-Za-z0-9_]*)(\s*[=:]\s*)("?)([^\s"',}]+)/gi,
+    new RegExp(`\\b(${SECRET_NAME})(\\s*[=:]\\s*)("?)([^\\s"',}&#]+)`, 'gi'),
     (_m, k, sep, q) => `${k}${sep}${q}${MASK}`,
   );
+  // --token value / -api-key value: a secret-named flag followed by its value as a separate argument
+  out = out.replace(new RegExp(`(^|\\s)(--?${SECRET_NAME})(\\s+)(?!-)(\\S+)`, 'gi'), (_m, pre, flag, sp) => `${pre}${flag}${sp}${MASK}`);
   return out;
+}
+
+/** Mask every query value and any password in a URL; endpoints often carry keys as ?key=... */
+export function redactUrl(u: string): string {
+  try {
+    const url = new URL(u);
+    if (url.password) url.password = MASK;
+    for (const k of [...url.searchParams.keys()]) url.searchParams.set(k, MASK);
+    return decodeURI(url.toString());
+  } catch {
+    return redactString(u);
+  }
 }
 
 export function redact<T>(value: T, keyHint = ''): T {
