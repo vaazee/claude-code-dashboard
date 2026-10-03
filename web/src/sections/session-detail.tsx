@@ -39,7 +39,7 @@ export function SessionDetailPage() {
     navigator.clipboard.writeText(text);
     toast.success(`${what} copied`);
   };
-  const open = async (target: 'finder' | 'vscode' | 'terminal') => {
+  const open = async (target: 'finder' | 'vscode' | 'cmux') => {
     try {
       await post('/actions/open', { sessionId: s.id, target });
     } catch (e) {
@@ -97,8 +97,8 @@ export function SessionDetailPage() {
           <Button onClick={() => open('vscode')}>
             <Code2 className="size-3.5" /> Open in VS Code
           </Button>
-          <Button onClick={() => open('terminal')}>
-            <SquareTerminal className="size-3.5" /> Open Terminal here
+          <Button onClick={() => open('cmux')}>
+            <SquareTerminal className="size-3.5" /> Open in cmux
           </Button>
           {s.live && (
             <Button variant="danger" onClick={() => setConfirmKill(true)}>

@@ -18,6 +18,8 @@ import { LIVE_DIR, PORT, PROJECTS_DIR } from './paths.ts';
 import { Queries } from './queries.ts';
 
 const VERSION = '0.1.0';
+// cmux's CLI opens a directory in a new workspace (launching cmux if needed).
+const CMUX_BIN = process.env.CCDASH_CMUX ?? '/Applications/cmux.app/Contents/Resources/bin/cmux';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIST = path.resolve(here, '../../web/dist');
 
@@ -116,13 +118,19 @@ api.get('/config', (c) => c.json(buildConfig(q)));
 api.get('/history', (c) => c.json(readHistory(c.req.query('q') ?? '', Math.min(2000, Number(c.req.query('limit') ?? 300)))));
 
 api.post('/actions/open', async (c) => {
-  const { sessionId, target } = await c.req.json<{ sessionId: string; target: 'finder' | 'vscode' | 'terminal' }>();
+  const { sessionId, target } = await c.req.json<{ sessionId: string; target: 'finder' | 'vscode' | 'cmux' }>();
   // The path comes from our own index, never from the request body.
   const s = q.session(sessionId);
   const dir = s?.cwdAbs;
   if (!dir || !exists(dir)) return c.json({ ok: false, error: 'Directory not found' }, 404);
   const [cmd, args] =
-    target === 'vscode' ? ['open', ['-a', 'Visual Studio Code', dir]] : target === 'terminal' ? ['open', ['-a', 'Terminal', dir]] : ['open', [dir]];
+    target === 'vscode'
+      ? ['open', ['-a', 'Visual Studio Code', dir]]
+      : target === 'cmux'
+        ? exists(CMUX_BIN)
+          ? [CMUX_BIN, [dir]]
+          : ['open', ['-a', 'cmux', dir]]
+        : ['open', [dir]];
   return new Promise<Response>((resolve) =>
     execFile(cmd as string, args as string[], (err) =>
       resolve(err ? c.json({ ok: false, error: err.message }, 500) : c.json({ ok: true })),

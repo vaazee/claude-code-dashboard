@@ -42,7 +42,7 @@ You need Node 22.18 or newer. The server runs TypeScript directly through Node's
 |---|---|
 | Overview | Live sessions as lanes, each with a status ring (Working, or Waiting for you), a ticking uptime clock, the current activity and cost so far. Also spend for today, the week and the month, a 30-day chart and recent sessions. |
 | Sessions | Every session with search, project and time filters, sorting and saved views. |
-| Session detail | Readable transcript with prompts, replies, collapsible tool calls, edit diffs, thinking, per-turn cost and subagent threads. Also the cost curve, models, tools, files touched and lines changed. Actions: copy the resume command, open the folder in Finder, VS Code or Terminal, and stop a live session (asks first). |
+| Session detail | Readable transcript with prompts, replies, collapsible tool calls, edit diffs, thinking, per-turn cost and subagent threads. Also the cost curve, models, tools, files touched and lines changed. Actions: copy the resume command, open the folder in Finder, VS Code or cmux, and stop a live session (asks first). |
 | Analytics | Daily spend by model; spend by model and by project; a weekday × hour heatmap; top tools; cache savings; lines written; how long sessions last. |
 | Projects | Every folder you've used Claude Code in, with spend, a 14-day sparkline, CLAUDE.md files, memory files and MCP servers. |
 | Skills & plugins | User, plugin, project and built-in skills, commands and agents, with use counts. Also plugins, marketplaces and MCP servers with call counts. |
