@@ -119,7 +119,9 @@ case "${1:-}" in
   restart) stop && start ;;
   open)
     server_pid >/dev/null || start
-    open "$URL"
+    if command -v open >/dev/null 2>&1 && [ "$(uname)" = "Darwin" ]; then open "$URL"
+    elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$URL" >/dev/null 2>&1
+    else echo "Open $URL in your browser"; fi
     ;;
   status) status ;;
   logs) touch "$LOG_FILE" 2>/dev/null; exec tail -f "$LOG_FILE" ;;

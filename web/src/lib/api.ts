@@ -30,6 +30,8 @@ export async function post<T = { ok: boolean; error?: string }>(path: string, bo
   return data;
 }
 
+export const useEnv = () =>
+  useQuery({ queryKey: ['env'], queryFn: () => get<{ platform: string; terminal: string }>('/env'), staleTime: Infinity });
 export const useOverview = () => useQuery({ queryKey: ['overview'], queryFn: () => get<Overview>('/overview') });
 export const useSessions = () => useQuery({ queryKey: ['sessions'], queryFn: () => get<SessionSummary[]>('/sessions') });
 export const useSession = (id: string) =>

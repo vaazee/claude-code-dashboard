@@ -8,7 +8,7 @@ import { Avatar, projectEmoji } from '@/components/avatar';
 import { LiveRing, StatusLabel } from '@/components/live';
 import { TranscriptView } from '@/components/transcript';
 import { Button, cx, Empty, ErrorState, Meter, PageSkeleton, Panel, Stat, Tip, useNow } from '@/components/ui';
-import { post, useSession } from '@/lib/api';
+import { post, useEnv, useSession } from '@/lib/api';
 import { modelColor } from '@/lib/colors';
 import { dateTime, duration, int, modelName, time, tokens, usd } from '@/lib/format';
 
@@ -18,6 +18,7 @@ export function SessionDetailPage() {
   const [agent, setAgent] = useState<string | null>(null);
   const [confirmKill, setConfirmKill] = useState(false);
   const now = useNow(1000);
+  const env = useEnv();
 
   const curve = useMemo(() => {
     let acc = 0;
@@ -39,7 +40,7 @@ export function SessionDetailPage() {
     navigator.clipboard.writeText(text);
     toast.success(`${what} copied`);
   };
-  const open = async (target: 'finder' | 'vscode' | 'cmux') => {
+  const open = async (target: 'folder' | 'editor' | 'terminal') => {
     try {
       await post('/actions/open', { sessionId: s.id, target });
     } catch (e) {
@@ -91,14 +92,14 @@ export function SessionDetailPage() {
           <Button variant="solid" onClick={() => copy(resumeCmd, 'Resume command')}>
             <Copy className="size-3.5" /> Copy resume command
           </Button>
-          <Button onClick={() => open('finder')}>
+          <Button onClick={() => open('folder')}>
             <FolderOpen className="size-3.5" /> Open folder
           </Button>
-          <Button onClick={() => open('vscode')}>
+          <Button onClick={() => open('editor')}>
             <Code2 className="size-3.5" /> Open in VS Code
           </Button>
-          <Button onClick={() => open('cmux')}>
-            <SquareTerminal className="size-3.5" /> Open in cmux
+          <Button onClick={() => open('terminal')}>
+            <SquareTerminal className="size-3.5" /> Open in {env.data?.terminal ?? 'terminal'}
           </Button>
           {s.live && (
             <Button variant="danger" onClick={() => setConfirmKill(true)}>

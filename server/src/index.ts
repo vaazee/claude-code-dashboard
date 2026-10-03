@@ -1,4 +1,3 @@
-import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,13 +12,12 @@ import { openDb } from './db.ts';
 import { refForPath, TranscriptIndex } from './ingest/transcripts.ts';
 import { exists } from './lib/fsx.ts';
 import { readLive } from './lib/live.ts';
+import { openDir, openUrl, terminalName, type OpenTarget } from './lib/open.ts';
 import { readTranscript } from './lib/transcript.ts';
 import { LIVE_DIR, PORT, PROJECTS_DIR } from './paths.ts';
 import { Queries } from './queries.ts';
 
 const VERSION = '0.1.0';
-// cmux's CLI opens a directory in a new workspace (launching cmux if needed).
-const CMUX_BIN = process.env.CCDASH_CMUX ?? '/Applications/cmux.app/Contents/Resources/bin/cmux';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIST = path.resolve(here, '../../web/dist');
 
@@ -117,25 +115,17 @@ api.get('/inventory', (c) => c.json(buildInventory(q)));
 api.get('/config', (c) => c.json(buildConfig(q)));
 api.get('/history', (c) => c.json(readHistory(c.req.query('q') ?? '', Math.min(2000, Number(c.req.query('limit') ?? 300)))));
 
+// What this machine can open things with, so the UI can label its buttons.
+api.get('/env', (c) => c.json({ platform: process.platform, terminal: terminalName() }));
+
 api.post('/actions/open', async (c) => {
-  const { sessionId, target } = await c.req.json<{ sessionId: string; target: 'finder' | 'vscode' | 'cmux' }>();
+  const { sessionId, target } = await c.req.json<{ sessionId: string; target: OpenTarget }>();
+  if (!['folder', 'editor', 'terminal'].includes(target)) return c.json({ ok: false, error: 'Unknown target' }, 400);
   // The path comes from our own index, never from the request body.
-  const s = q.session(sessionId);
-  const dir = s?.cwdAbs;
+  const dir = q.session(sessionId)?.cwdAbs;
   if (!dir || !exists(dir)) return c.json({ ok: false, error: 'Directory not found' }, 404);
-  const [cmd, args] =
-    target === 'vscode'
-      ? ['open', ['-a', 'Visual Studio Code', dir]]
-      : target === 'cmux'
-        ? exists(CMUX_BIN)
-          ? [CMUX_BIN, [dir]]
-          : ['open', ['-a', 'cmux', dir]]
-        : ['open', [dir]];
-  return new Promise<Response>((resolve) =>
-    execFile(cmd as string, args as string[], (err) =>
-      resolve(err ? c.json({ ok: false, error: err.message }, 500) : c.json({ ok: true })),
-    ),
-  );
+  const error = await openDir(target, dir);
+  return error ? c.json({ ok: false, error }, 500) : c.json({ ok: true });
 });
 
 api.post('/actions/kill', async (c) => {
@@ -177,5 +167,5 @@ if (exists(WEB_DIST)) {
 serve({ fetch: app.fetch, port: PORT, hostname: '127.0.0.1' }, (info) => {
   const url = `http://localhost:${info.port}`;
   console.log(`[ccdash] ${url}`);
-  if (process.argv.includes('--open')) execFile('open', [url]);
+  if (process.argv.includes('--open')) openUrl(url);
 });
