@@ -95,6 +95,16 @@ export const projectEmoji = (name: string) => pick(PROJECT_RULES, name);
 export const skillEmoji = (name: string) => pick(SKILL_RULES, name);
 export const mcpEmoji = (name: string) => pick(MCP_RULES, name);
 
+/** The hue an entity's avatar uses; reuse it so a project looks the same in every chart. */
+export function nameHue(name: string): number {
+  return hash(name) % 360;
+}
+
+/** A solid, readable color for an entity (bars, sparklines) in both light and dark themes. */
+export function nameColor(name: string): string {
+  return `oklch(0.68 0.14 ${nameHue(name)})`;
+}
+
 /** A rounded tile with a name-derived gradient and an emoji: the same name always looks the same. */
 export function Avatar({
   name,
@@ -139,8 +149,8 @@ export function IconTile({ children, size = 40, className }: { children: React.R
         width: size,
         height: size,
         fontSize: size * 0.5,
-        background: 'linear-gradient(135deg, color-mix(in oklab, var(--glow1) 30%, var(--surface)), color-mix(in oklab, var(--glow2) 22%, var(--surface)))',
-        boxShadow: 'inset 0 0 0 1px color-mix(in oklab, var(--signal) 25%, transparent)',
+        background: 'linear-gradient(135deg, color-mix(in oklab, var(--signal) 32%, var(--surface)), color-mix(in oklab, var(--accent2) 30%, var(--surface)))',
+        boxShadow: 'inset 0 0 0 1px color-mix(in oklab, var(--accent2) 30%, transparent)',
       }}
     >
       {children}

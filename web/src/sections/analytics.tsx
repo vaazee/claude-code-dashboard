@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Avatar, projectEmoji } from '@/components/avatar';
+import { Avatar, nameColor, projectEmoji } from '@/components/avatar';
 import { ActivityHeatmap, ChartTip, DailyCostChart, Legend } from '@/components/charts';
 import { ErrorState, Meter, PageHeader, PageSkeleton, Panel, Segmented, Stat, Tip } from '@/components/ui';
 import { useAnalytics } from '@/lib/api';
@@ -97,7 +97,7 @@ export function AnalyticsPage() {
                     {usd(p.cost)} <span className="text-ink-3">· {plural(p.sessions, 'session')}</span>
                   </span>
                 </div>
-                <Meter value={p.cost} max={maxProject} />
+                <Meter value={p.cost} max={maxProject} color={nameColor(p.project)} />
               </li>
             ))}
           </ul>
@@ -117,7 +117,7 @@ export function AnalyticsPage() {
                   <span className="truncate text-ink-2">{tool.name.replace(/^mcp__/, '').replace(/__/g, ' · ')}</span>
                   <span className="num text-ink">{int(tool.count)}</span>
                 </div>
-                <Meter value={tool.count} max={maxTool} />
+                <Meter value={tool.count} max={maxTool} color="var(--accent3)" />
               </li>
             ))}
           </ul>
@@ -183,7 +183,7 @@ export function AnalyticsPage() {
               <XAxis dataKey="bucket" tickLine={false} axisLine={false} />
               <YAxis tickLine={false} axisLine={false} width={32} allowDecimals={false} />
               <Tooltip content={<ChartTip valueFormat={(v: number) => `${v} sessions`} />} cursor={{ fill: 'var(--surface-3)', opacity: 0.5 }} />
-              <Bar dataKey="count" name="Sessions" fill="var(--signal)" maxBarSize={56} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="count" name="Sessions" fill="var(--accent3)" maxBarSize={56} radius={[4, 4, 0, 0]} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
         </Panel>

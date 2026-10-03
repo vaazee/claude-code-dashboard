@@ -32,8 +32,8 @@ export function projectName(cwd: string | null | undefined): string {
   return path.basename(cwd);
 }
 
-function titleOf(row: any): string {
-  const t = row.custom_title || row.ai_title || row.first_prompt;
+function titleOf(row: any, inherited?: string | null): string {
+  const t = row.custom_title || row.ai_title || inherited || row.first_prompt;
   if (!t) return 'Untitled session';
   const one = String(t).replace(/\s+/g, ' ').trim();
   return one.length > 90 ? one.slice(0, 90) + '…' : one;
@@ -65,11 +65,32 @@ export class Queries {
     };
   }
 
+  /** Walk the resume chain backwards: the nearest ancestor and everything spent before this session. */
+  private resumeInfo(row: any): { parent: SessionSummary['resumedFrom']; inheritedTitle: string | null } {
+    if (!row.resumed_from) return { parent: null, inheritedTitle: null };
+    const getRow = this.db.prepare('SELECT id, custom_title, ai_title, first_prompt, resumed_from FROM sessions WHERE id = ?');
+    const costOf = this.db.prepare('SELECT COALESCE(SUM(cost), 0) c FROM usage WHERE session_id = ?');
+    const first = getRow.get(row.resumed_from) as any;
+    if (!first) return { parent: null, inheritedTitle: null };
+    let cost = 0;
+    const seen = new Set<string>([row.id]);
+    for (let cur: any = first; cur && !seen.has(cur.id) && seen.size < 50; cur = cur.resumed_from ? getRow.get(cur.resumed_from) : null) {
+      seen.add(cur.id);
+      cost += (costOf.get(cur.id) as any).c;
+    }
+    const title = titleOf(first);
+    return { parent: { id: first.id, title, cost }, inheritedTitle: first.custom_title || first.ai_title || null };
+  }
+
   private toSummary(row: any): SessionSummary {
     const cwd = row.cwd ?? '';
+    const { parent, inheritedTitle } = this.resumeInfo(row);
+    const children = (
+      this.db.prepare('SELECT id, custom_title, ai_title, first_prompt FROM sessions WHERE resumed_from = ? ORDER BY started_at').all(row.id) as any[]
+    ).map((c) => ({ id: c.id, title: titleOf(c) }));
     return {
       id: row.id,
-      title: titleOf(row),
+      title: titleOf(row, inheritedTitle),
       aiTitle: row.ai_title,
       customTitle: row.custom_title,
       firstPrompt: row.first_prompt,
@@ -93,6 +114,8 @@ export class Queries {
       linesRemoved: row.removed,
       subagents: row.subagents,
       live: this.liveInfo(row.id),
+      resumedFrom: parent,
+      continuedIn: children,
     };
   }
 
@@ -124,6 +147,8 @@ export class Queries {
       linesRemoved: 0,
       subagents: 0,
       live: this.liveInfo(l.sessionId),
+      resumedFrom: null,
+      continuedIn: [],
     };
   }
 

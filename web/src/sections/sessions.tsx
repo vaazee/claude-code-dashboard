@@ -181,6 +181,11 @@ export function SessionsPage() {
                       <div className="flex items-center gap-2">
                         <span className="truncate font-medium text-ink group-hover:text-signal">{s.title}</span>
                         {s.live && <StatusLabel status={s.live.status} className="shrink-0 text-[11.5px]" />}
+                        {s.resumedFrom && (
+                          <span className="shrink-0 rounded-md bg-surface-3 px-1.5 text-[11px] text-ink-2" title={`Resumed from “${s.resumedFrom.title}”`}>
+                            ↩️ resumed
+                          </span>
+                        )}
                       </div>
                       {s.lastPrompt && s.lastPrompt !== s.title && (
                         <div className="mt-0.5 truncate text-[12px] text-ink-3">Last: {s.lastPrompt}</div>

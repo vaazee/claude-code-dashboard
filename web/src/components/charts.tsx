@@ -116,7 +116,9 @@ export function Sparkbars({
   height = 36,
   className,
   format = usd,
+  color = 'var(--signal)',
 }: {
+  color?: string;
   values: number[];
   labels?: string[];
   height?: number;
@@ -139,7 +141,7 @@ export function Sparkbars({
               className="w-full rounded-t-[2px] transition-colors"
               style={{
                 height: v > 0 ? `${Math.max(6, (v / max) * 100)}%` : '2px',
-                background: v > 0 ? (hover === i ? 'var(--text)' : 'var(--signal)') : 'var(--line)',
+                background: v > 0 ? (hover === i ? 'var(--text)' : color) : 'var(--line)',
               }}
             />
           </div>

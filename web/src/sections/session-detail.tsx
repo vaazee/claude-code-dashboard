@@ -108,6 +108,31 @@ export function SessionDetailPage() {
         </div>
       </header>
 
+      {(s.resumedFrom || s.continuedIn.length > 0) && (
+        <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-xl border border-line bg-surface-2 px-4 py-2.5 text-[13px] text-ink-2">
+          {s.resumedFrom && (
+            <span>
+              <span aria-hidden>↩️ </span>
+              Continues{' '}
+              <Link to="/sessions/$id" params={{ id: s.resumedFrom.id }} className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:text-signal">
+                {s.resumedFrom.title}
+              </Link>
+              . <span className="num font-medium text-ink">{usd(s.resumedFrom.cost)}</span> was spent before resuming; this session's
+              cost covers only what came after.
+            </span>
+          )}
+          {s.continuedIn.map((c) => (
+            <span key={c.id}>
+              <span aria-hidden>↪️ </span>
+              Resumed later as{' '}
+              <Link to="/sessions/$id" params={{ id: c.id }} className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:text-signal">
+                {c.title}
+              </Link>
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="mb-8 grid grid-cols-2 gap-x-8 gap-y-5 rounded-xl border border-line bg-surface px-5 py-4 sm:grid-cols-3 lg:grid-cols-6">
         <Stat
           label="Cost"
@@ -159,7 +184,7 @@ export function SessionDetailPage() {
                       ) : null
                     }
                   />
-                  <Area type="stepAfter" dataKey="cost" stroke="var(--signal)" strokeWidth={2} fill="var(--signal)" fillOpacity={0.12} isAnimationActive={false} />
+                  <Area type="stepAfter" dataKey="cost" stroke="var(--accent2)" strokeWidth={2} fill="var(--accent2)" fillOpacity={0.14} isAnimationActive={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </Panel>
@@ -213,7 +238,7 @@ export function SessionDetailPage() {
                     <span className="truncate text-ink-2">{t.name.replace(/^mcp__/, '').replace(/__/g, ' · ')}</span>
                     <span className="num text-ink">{t.count}</span>
                     <div className="col-span-2">
-                      <Meter value={t.count} max={s.tools[0].count} />
+                      <Meter value={t.count} max={s.tools[0].count} color="var(--accent3)" />
                     </div>
                   </li>
                 ))}

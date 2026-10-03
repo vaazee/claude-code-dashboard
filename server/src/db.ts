@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { DATA_DIR, DB_PATH } from './paths.ts';
 
 // Bump when the schema or the parser's output changes; the cache is rebuilt from transcripts.
-const SCHEMA_VERSION = '3';
+const SCHEMA_VERSION = '4';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
@@ -34,8 +34,18 @@ CREATE TABLE IF NOT EXISTS sessions (
   last_at INTEGER,
   prompts INTEGER NOT NULL DEFAULT 0,
   cc_cost REAL,
-  permission_mode TEXT
+  permission_mode TEXT,
+  resumed_from TEXT
 );
+CREATE INDEX IF NOT EXISTS sessions_resumed ON sessions(resumed_from);
+
+-- Prompts keyed by record uuid: a resumed session's copy of earlier prompts is counted once.
+CREATE TABLE IF NOT EXISTS prompts (
+  uuid TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  ts INTEGER
+);
+CREATE INDEX IF NOT EXISTS prompts_session ON prompts(session_id);
 CREATE INDEX IF NOT EXISTS sessions_last ON sessions(last_at);
 
 -- Deduplicated API requests (message id + request id), priced at ingest time.

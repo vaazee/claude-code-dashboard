@@ -1,7 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-// A theme sets surfaces, ink and the accent ("signal"). Chart series and status
-// colors come from the base (light/dark) so they stay colorblind-validated in every theme.
+// A theme is three hues on a set of surfaces:
+//   signal  — the primary accent (navigation, primary buttons, focus)
+//   accent2 — a contrasting warm/cool partner (hero glow, heatmap, cost curves)
+//   accent3 — a third note for small highlights (tool meters, histogram, stars)
+// Chart series and status colors come from the base (light/dark) so they stay
+// colorblind-validated in every theme.
 export type ThemeTokens = {
   bg: string;
   surface: string;
@@ -15,6 +19,8 @@ export type ThemeTokens = {
   signal: string;
   'signal-soft': string;
   'on-signal': string;
+  accent2: string;
+  accent3: string;
   glow1: string;
   glow2: string;
 };
@@ -27,22 +33,24 @@ export const THEMES: Theme[] = [
     name: 'Midnight',
     emoji: '🌌',
     base: 'dark',
-    blurb: 'Slate navy with a periwinkle signal',
+    blurb: 'Ink night, periwinkle with coral and mint',
     tokens: {
-      bg: '#121a2b',
-      surface: '#18223a',
-      'surface-2': '#1d2843',
-      'surface-3': '#25324f',
-      line: '#2a3858',
-      'line-strong': '#3a4a70',
-      text: '#e9edf7',
-      'text-2': '#a7b1c8',
-      'text-3': '#7a86a1',
+      bg: '#11141c',
+      surface: '#181c27',
+      'surface-2': '#1d2230',
+      'surface-3': '#262c3c',
+      line: '#2a3142',
+      'line-strong': '#3c4459',
+      text: '#eceef5',
+      'text-2': '#aab0c2',
+      'text-3': '#7f879c',
       signal: '#8b9cff',
-      'signal-soft': '#27305a',
-      'on-signal': '#121a2b',
-      glow1: '#4f5fe0',
-      glow2: '#22d3ee',
+      'signal-soft': '#272c4d',
+      'on-signal': '#11141c',
+      accent2: '#ff8a65',
+      accent3: '#5eead4',
+      glow1: '#6366f1',
+      glow2: '#fb7185',
     },
   },
   {
@@ -50,22 +58,24 @@ export const THEMES: Theme[] = [
     name: 'Aurora',
     emoji: '🌠',
     base: 'dark',
-    blurb: 'Deep teal night with mint light',
+    blurb: 'Polar teal with lavender and gold',
     tokens: {
-      bg: '#0d1b1e',
-      surface: '#12252a',
-      'surface-2': '#163035',
-      'surface-3': '#1d3b41',
-      line: '#24464d',
-      'line-strong': '#31606a',
+      bg: '#0b191c',
+      surface: '#112328',
+      'surface-2': '#152c32',
+      'surface-3': '#1c383f',
+      line: '#22434a',
+      'line-strong': '#305b64',
       text: '#e6f4f1',
       'text-2': '#a3c4bf',
       'text-3': '#76968f',
       signal: '#5eead4',
-      'signal-soft': '#173f3f',
-      'on-signal': '#0d1b1e',
+      'signal-soft': '#153b3b',
+      'on-signal': '#0b191c',
+      accent2: '#c4b5fd',
+      accent3: '#fcd34d',
       glow1: '#14b8a6',
-      glow2: '#a78bfa',
+      glow2: '#8b5cf6',
     },
   },
   {
@@ -73,12 +83,12 @@ export const THEMES: Theme[] = [
     name: 'Ember',
     emoji: '🔥',
     base: 'dark',
-    blurb: 'Warm charcoal lit in amber',
+    blurb: 'Charcoal and amber with rose and teal',
     tokens: {
-      bg: '#1b1512',
-      surface: '#241c18',
-      'surface-2': '#2b221d',
-      'surface-3': '#362a24',
+      bg: '#1a1411',
+      surface: '#231b17',
+      'surface-2': '#2a211c',
+      'surface-3': '#352923',
       line: '#3d3029',
       'line-strong': '#574437',
       text: '#f5ece4',
@@ -86,7 +96,9 @@ export const THEMES: Theme[] = [
       'text-3': '#94816f',
       signal: '#fbbf24',
       'signal-soft': '#3d2f17',
-      'on-signal': '#1b1512',
+      'on-signal': '#1a1411',
+      accent2: '#fb7185',
+      accent3: '#2dd4bf',
       glow1: '#f97316',
       glow2: '#e11d48',
     },
@@ -96,12 +108,12 @@ export const THEMES: Theme[] = [
     name: 'Nebula',
     emoji: '🪐',
     base: 'dark',
-    blurb: 'Violet dusk with a rose signal',
+    blurb: 'Violet dusk, rose with cyan and gold',
     tokens: {
-      bg: '#17122a',
-      surface: '#1f1836',
-      'surface-2': '#251d40',
-      'surface-3': '#2e254d',
+      bg: '#16112a',
+      surface: '#1e1735',
+      'surface-2': '#241c3f',
+      'surface-3': '#2d244c',
       line: '#362c5a',
       'line-strong': '#4a3d78',
       text: '#f0ebff',
@@ -109,9 +121,11 @@ export const THEMES: Theme[] = [
       'text-3': '#8a7cb0',
       signal: '#f472b6',
       'signal-soft': '#3d1f3e',
-      'on-signal': '#17122a',
+      'on-signal': '#16112a',
+      accent2: '#67e8f9',
+      accent3: '#fde68a',
       glow1: '#a855f7',
-      glow2: '#f472b6',
+      glow2: '#06b6d4',
     },
   },
   {
@@ -119,22 +133,24 @@ export const THEMES: Theme[] = [
     name: 'Daylight',
     emoji: '☀️',
     base: 'light',
-    blurb: 'Cool paper with an indigo signal',
+    blurb: 'Cool paper, indigo with tangerine and teal',
     tokens: {
-      bg: '#eef1f7',
+      bg: '#f1f3f8',
       surface: '#ffffff',
-      'surface-2': '#f5f7fb',
-      'surface-3': '#e8ecf5',
-      line: '#d9deea',
-      'line-strong': '#c3cadb',
+      'surface-2': '#f6f7fb',
+      'surface-3': '#e9ecf4',
+      line: '#dce0ea',
+      'line-strong': '#c4cada',
       text: '#18213a',
       'text-2': '#4a5573',
       'text-3': '#667190',
       signal: '#4f5fe0',
       'signal-soft': '#e3e7ff',
       'on-signal': '#ffffff',
+      accent2: '#ea580c',
+      accent3: '#0d9488',
       glow1: '#818cf8',
-      glow2: '#67e8f9',
+      glow2: '#fdba74',
     },
   },
   {
@@ -142,22 +158,24 @@ export const THEMES: Theme[] = [
     name: 'Glacier',
     emoji: '🧊',
     base: 'light',
-    blurb: 'Icy blue-green, crisp and calm',
+    blurb: 'Icy mint, deep teal with coral and ochre',
     tokens: {
-      bg: '#e9f3f5',
-      surface: '#ffffff',
-      'surface-2': '#f3f9fa',
-      'surface-3': '#dcecef',
-      line: '#cfe2e6',
-      'line-strong': '#b2cfd5',
+      bg: '#e4f1f2',
+      surface: '#fbfefe',
+      'surface-2': '#f0f8f9',
+      'surface-3': '#d9eaed',
+      line: '#c9dfe3',
+      'line-strong': '#a9cad0',
       text: '#0f2a30',
       'text-2': '#3d5d63',
-      'text-3': '#5d7a80',
+      'text-3': '#5a777c',
       signal: '#0e7490',
-      'signal-soft': '#d4eef3',
+      'signal-soft': '#cfeaf0',
       'on-signal': '#ffffff',
+      accent2: '#e11d48',
+      accent3: '#ca8a04',
       glow1: '#22d3ee',
-      glow2: '#34d399',
+      glow2: '#fda4af',
     },
   },
   {
@@ -165,20 +183,22 @@ export const THEMES: Theme[] = [
     name: 'Orchid',
     emoji: '🌸',
     base: 'light',
-    blurb: 'Soft lavender with a violet signal',
+    blurb: 'Lavender, violet with magenta and jade',
     tokens: {
-      bg: '#f3effa',
-      surface: '#ffffff',
-      'surface-2': '#f8f5fc',
-      'surface-3': '#ebe4f6',
-      line: '#e0d7ef',
-      'line-strong': '#cbbde3',
+      bg: '#f4eefb',
+      surface: '#fffdff',
+      'surface-2': '#f9f4fd',
+      'surface-3': '#ece2f7',
+      line: '#e1d5f0',
+      'line-strong': '#cbbbe4',
       text: '#25163d',
       'text-2': '#574872',
       'text-3': '#776a92',
       signal: '#7c3aed',
       'signal-soft': '#ede4fe',
       'on-signal': '#ffffff',
+      accent2: '#db2777',
+      accent3: '#059669',
       glow1: '#c084fc',
       glow2: '#f9a8d4',
     },
@@ -188,21 +208,25 @@ export const THEMES: Theme[] = [
 export const themeById = (id: string) => THEMES.find((t) => t.id === id) ?? THEMES[0];
 
 export type Appearance = {
-  mode: 'fixed' | 'system';
-  theme: string; // used when mode = fixed
-  light: string; // used when mode = system and the OS is light
-  dark: string; // used when mode = system and the OS is dark
+  theme: string; // the chosen theme when not following the OS
+  followSystem: boolean;
+  light: string; // used when following the OS and it is light
+  dark: string; // used when following the OS and it is dark
   motion: boolean;
 };
 
-const DEFAULTS: Appearance = { mode: 'system', theme: 'midnight', light: 'daylight', dark: 'midnight', motion: true };
+const DEFAULTS: Appearance = { theme: 'midnight', followSystem: false, light: 'daylight', dark: 'midnight', motion: true };
 const KEY = 'ccdash-appearance';
 // index.html reads this before React loads, so the first paint is already themed.
 const PAINT_KEY = 'ccdash-paint';
 
 function load(): Appearance {
   try {
-    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') };
+    const raw = JSON.parse(localStorage.getItem(KEY) ?? '{}');
+    // Earlier versions stored { mode: 'system' | 'fixed' }.
+    if (raw.mode && raw.followSystem === undefined) raw.followSystem = raw.mode === 'system';
+    delete raw.mode;
+    return { ...DEFAULTS, ...raw };
   } catch {
     return DEFAULTS;
   }
@@ -213,13 +237,14 @@ function prefersDark(): boolean {
 }
 
 export function resolveTheme(a: Appearance, osDark: boolean): Theme {
-  if (a.mode === 'fixed') return themeById(a.theme);
+  if (!a.followSystem) return themeById(a.theme);
   return themeById(osDark ? a.dark : a.light);
 }
 
 export function applyTheme(theme: Theme, motion: boolean) {
   const root = document.documentElement;
   root.dataset.base = theme.base;
+  root.dataset.theme = theme.id;
   root.dataset.motion = motion ? 'on' : 'off';
   for (const [k, v] of Object.entries(theme.tokens)) root.style.setProperty(`--${k}`, v);
   try {
@@ -230,7 +255,10 @@ export function applyTheme(theme: Theme, motion: boolean) {
 type Ctx = {
   appearance: Appearance;
   active: Theme;
+  osDark: boolean;
   update: (patch: Partial<Appearance>) => void;
+  /** Apply a theme right now, whatever the OS is doing. */
+  choose: (id: string) => void;
 };
 
 export const AppearanceContext = createContext<Ctx | null>(null);
@@ -256,7 +284,18 @@ export function useAppearanceState(): Ctx {
     } catch {}
   }, [active, appearance]);
 
-  return { appearance, active, update: (patch) => setAppearance((a) => ({ ...a, ...patch })) };
+  const update = (patch: Partial<Appearance>) => setAppearance((a) => ({ ...a, ...patch }));
+  const choose = (id: string) => {
+    const t = themeById(id);
+    setAppearance((a) => {
+      // While following the OS, a theme for the current mode just becomes that mode's pick.
+      if (a.followSystem && (t.base === 'dark') === osDark) return { ...a, [t.base]: id };
+      // Otherwise the person wants to see it now: stop following the OS.
+      return { ...a, theme: id, followSystem: false };
+    });
+  };
+
+  return { appearance, active, osDark, update, choose };
 }
 
 export function useAppearance(): Ctx {

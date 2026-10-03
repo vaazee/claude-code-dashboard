@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { Brain, FileText, Plug } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Avatar, projectEmoji } from '@/components/avatar';
+import { Avatar, nameColor, projectEmoji } from '@/components/avatar';
 import { Sparkbars } from '@/components/charts';
 import { Empty, ErrorState, PageHeader, PageSkeleton, Pill, SearchInput, Segmented } from '@/components/ui';
 import { useProjects } from '@/lib/api';
@@ -102,7 +102,7 @@ export function ProjectsPage() {
                 </div>
               </div>
               <div>
-                <Sparkbars values={p.daily} labels={dayLabels} height={34} />
+                <Sparkbars values={p.daily} labels={dayLabels} height={34} color={nameColor(p.project)} />
                 <div className="mt-1 text-[11px] text-ink-3">last 14 days</div>
               </div>
             </div>

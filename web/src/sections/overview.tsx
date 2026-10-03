@@ -25,16 +25,42 @@ function salutation(): { text: string; emoji: string } {
   return { text: 'Working late', emoji: '🌙' };
 }
 
-function StatTile({ emoji, label, value, hint }: { emoji: string; label: string; value: React.ReactNode; hint?: React.ReactNode }) {
+// Each tile carries one of the theme's three hues so the row reads as a set, not a stripe of one color.
+function StatTile({
+  emoji,
+  label,
+  value,
+  hint,
+  hue,
+  children,
+  className,
+}: {
+  emoji: string;
+  label: string;
+  value?: React.ReactNode;
+  hint?: React.ReactNode;
+  hue: string;
+  children?: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="min-w-0 rounded-2xl border border-line bg-surface px-4 py-3.5">
+    <div
+      className={`relative min-w-0 overflow-hidden rounded-2xl border border-line px-4 py-3.5 ${className ?? ''}`}
+      style={{ background: `linear-gradient(160deg, color-mix(in oklab, ${hue} 10%, var(--surface)), var(--surface) 60%)` }}
+    >
+      <span className="absolute inset-x-0 top-0 h-[3px]" style={{ background: hue }} aria-hidden />
       <div className="flex items-center justify-between text-[12.5px] text-ink-3">
         {label}
-        <span className="grid size-7 place-items-center rounded-lg bg-surface-2 text-[15px]" aria-hidden>
+        <span
+          className="grid size-7 place-items-center rounded-lg text-[15px]"
+          style={{ background: `color-mix(in oklab, ${hue} 20%, var(--surface))` }}
+          aria-hidden
+        >
           {emoji}
         </span>
       </div>
-      <div className="display num mt-1 truncate text-[24px] font-[650] text-ink">{value}</div>
+      {children}
+      {value != null && <div className="display num mt-1 truncate text-[24px] font-[650] text-ink">{value}</div>}
       {hint && <div className="mt-0.5 truncate text-[12px] text-ink-3">{hint}</div>}
     </div>
   );
@@ -105,19 +131,19 @@ export function OverviewPage() {
       </motion.section>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <StatTile emoji="💸" label="Spent today" value={usd(k.today)} hint={`${usd(k.yesterday)} yesterday`} />
-        <StatTile emoji="📅" label="Last 7 days" value={usd(k.week)} hint={`${usd(k.week / 7)} a day`} />
-        <StatTile emoji="🗓️" label="This month" value={usd(k.month)} hint={`${usd(k.allTime, { compact: true })} all time`} />
-        <StatTile emoji="🔤" label="Tokens today" value={tokens(k.todayTokens)} hint={`${k.todayRequests.toLocaleString()} API requests`} />
-        <div className="col-span-2 min-w-0 rounded-2xl border border-line bg-surface px-4 py-3.5 md:col-span-1">
-          <div className="flex items-center justify-between text-[12.5px] text-ink-3">
-            30-day rhythm
-            <span className="grid size-7 place-items-center rounded-lg bg-surface-2 text-[15px]" aria-hidden>
-              📈
-            </span>
-          </div>
-          <Sparkbars className="mt-3" values={data.daily.map((d) => d.cost)} labels={data.daily.map((d) => shortDay(d.day))} height={40} />
-        </div>
+        <StatTile hue="var(--signal)" emoji="💸" label="Spent today" value={usd(k.today)} hint={`${usd(k.yesterday)} yesterday`} />
+        <StatTile hue="var(--accent2)" emoji="📅" label="Last 7 days" value={usd(k.week)} hint={`${usd(k.week / 7)} a day`} />
+        <StatTile hue="var(--accent3)" emoji="🗓️" label="This month" value={usd(k.month)} hint={`${usd(k.allTime, { compact: true })} all time`} />
+        <StatTile hue="var(--signal)" emoji="🔤" label="Tokens today" value={tokens(k.todayTokens)} hint={`${k.todayRequests.toLocaleString()} API requests`} />
+        <StatTile hue="var(--accent2)" emoji="📈" label="30-day rhythm" className="col-span-2 md:col-span-1">
+          <Sparkbars
+            className="mt-3"
+            values={data.daily.map((d) => d.cost)}
+            labels={data.daily.map((d) => shortDay(d.day))}
+            height={40}
+            color="var(--accent2)"
+          />
+        </StatTile>
       </div>
 
       <Panel title={<PanelTitle emoji="🛰️">Running now</PanelTitle>} aside={k.liveCount ? 'Updates live as sessions work' : undefined} bodyClassName="p-0">

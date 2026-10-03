@@ -22,9 +22,9 @@ function Brand() {
             <stop offset="100%" stopColor="var(--glow1)" />
           </radialGradient>
         </defs>
-        <ellipse rx="13" ry="5.5" fill="none" stroke="var(--line-strong)" strokeWidth="1.5" transform="rotate(-24)" />
+        <ellipse rx="13" ry="5.5" fill="none" stroke="var(--accent3)" strokeOpacity="0.6" strokeWidth="1.5" transform="rotate(-24)" />
         <circle r="6" fill="url(#brand-sun)" />
-        <circle cx="11" cy="-5" r="2.4" fill="var(--glow2)" />
+        <circle cx="11" cy="-5" r="2.6" fill="var(--accent2)" />
       </svg>
       <span className="leading-tight">
         <span className="display block text-[17px] font-[700] text-ink">ccdash</span>
@@ -84,7 +84,7 @@ export function AppShell() {
                   active ? 'bg-signal-soft font-medium text-ink' : 'text-ink-2 hover:bg-surface-2 hover:text-ink',
                 )}
               >
-                {active && <span className="absolute -left-3 top-1.5 h-6 w-1 rounded-r-full bg-signal" aria-hidden />}
+                {active && <span className="absolute -left-3 top-1.5 h-6 w-1 rounded-r-full bg-gradient-to-b from-signal to-accent2" aria-hidden />}
                 <n.icon className={cx('size-[18px]', active ? 'text-signal' : 'text-ink-3 group-hover:text-ink-2')} aria-hidden />
                 {n.label}
                 {n.to === '/' && (k?.liveCount ?? 0) > 0 && (
@@ -107,7 +107,7 @@ export function AppShell() {
             </div>
           )}
           <div className="flex items-center gap-2.5 rounded-xl px-1.5 py-1">
-            <span className="grid size-8 place-items-center rounded-full bg-gradient-to-br from-glow1 to-glow2 text-[13px] font-semibold text-white" aria-hidden>
+            <span className="grid size-8 place-items-center rounded-full bg-gradient-to-br from-signal to-accent2 text-[13px] font-semibold text-white" aria-hidden>
               {user.slice(0, 1).toUpperCase() || '·'}
             </span>
             <div className="min-w-0 flex-1">

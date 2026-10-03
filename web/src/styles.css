@@ -17,8 +17,10 @@
   --signal: #8b9cff;
   --signal-soft: #27305a;
   --on-signal: #121a2b;
-  --glow1: #4f5fe0;
-  --glow2: #22d3ee;
+  --accent2: #ff8a65;
+  --accent3: #5eead4;
+  --glow1: #6366f1;
+  --glow2: #fb7185;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-base]) {
@@ -35,8 +37,10 @@
     --signal: #4f5fe0;
     --signal-soft: #e3e7ff;
     --on-signal: #ffffff;
+    --accent2: #ea580c;
+    --accent3: #0d9488;
     --glow1: #818cf8;
-    --glow2: #67e8f9;
+    --glow2: #fdba74;
   }
 }
 
@@ -58,10 +62,10 @@
   --s7: #9085e9;
   --s8: #e66767;
   --seq-0: var(--surface-3);
-  --seq-1: #184f95;
-  --seq-2: #256abf;
-  --seq-3: #3987e5;
-  --seq-4: #86b6ef;
+  --seq-1: color-mix(in oklab, var(--accent2) 26%, var(--surface));
+  --seq-2: color-mix(in oklab, var(--accent2) 48%, var(--surface));
+  --seq-3: color-mix(in oklab, var(--accent2) 74%, var(--surface));
+  --seq-4: var(--accent2);
 }
 :root[data-base='light'] {
   color-scheme: light;
@@ -80,10 +84,10 @@
   --s7: #4a3aa7;
   --s8: #e34948;
   --seq-0: var(--surface-3);
-  --seq-1: #b7d3f6;
-  --seq-2: #6da7ec;
-  --seq-3: #2a78d6;
-  --seq-4: #184f95;
+  --seq-1: color-mix(in oklab, var(--accent2) 22%, var(--surface));
+  --seq-2: color-mix(in oklab, var(--accent2) 45%, var(--surface));
+  --seq-3: color-mix(in oklab, var(--accent2) 75%, var(--surface));
+  --seq-4: color-mix(in oklab, var(--accent2) 80%, var(--text));
 }
 :root[data-base='dark'] {
   color-scheme: dark;
@@ -102,10 +106,10 @@
     --s5: #e87ba4;
     --s7: #4a3aa7;
     --s8: #e34948;
-    --seq-1: #b7d3f6;
-    --seq-2: #6da7ec;
-    --seq-3: #2a78d6;
-    --seq-4: #184f95;
+    --seq-1: color-mix(in oklab, var(--accent2) 22%, var(--surface));
+    --seq-2: color-mix(in oklab, var(--accent2) 45%, var(--surface));
+    --seq-3: color-mix(in oklab, var(--accent2) 75%, var(--surface));
+    --seq-4: color-mix(in oklab, var(--accent2) 80%, var(--text));
   }
 }
 
@@ -122,6 +126,8 @@
   --color-signal: var(--signal);
   --color-signal-soft: var(--signal-soft);
   --color-on-signal: var(--on-signal);
+  --color-accent2: var(--accent2);
+  --color-accent3: var(--accent3);
   --color-glow1: var(--glow1);
   --color-glow2: var(--glow2);
   --color-good: var(--good);
@@ -141,8 +147,9 @@ body,
 }
 body {
   background:
-    radial-gradient(1200px 600px at 100% -10%, color-mix(in oklab, var(--glow2) 7%, transparent), transparent),
-    radial-gradient(900px 500px at -10% 0%, color-mix(in oklab, var(--glow1) 8%, transparent), transparent),
+    radial-gradient(1100px 560px at 105% -10%, color-mix(in oklab, var(--glow2) 9%, transparent), transparent),
+    radial-gradient(900px 520px at -10% 0%, color-mix(in oklab, var(--glow1) 10%, transparent), transparent),
+    radial-gradient(700px 500px at 60% 115%, color-mix(in oklab, var(--accent3) 5%, transparent), transparent),
     var(--bg);
   background-attachment: fixed;
   color: var(--text);
@@ -240,12 +247,13 @@ body {
 /* Soft gradient wash used behind the hero and page headers */
 .mesh {
   background:
-    radial-gradient(60% 90% at 0% 0%, color-mix(in oklab, var(--glow1) 26%, transparent), transparent 70%),
-    radial-gradient(50% 80% at 100% 10%, color-mix(in oklab, var(--glow2) 18%, transparent), transparent 70%),
+    radial-gradient(55% 85% at 0% 0%, color-mix(in oklab, var(--glow1) 30%, transparent), transparent 70%),
+    radial-gradient(45% 75% at 100% 0%, color-mix(in oklab, var(--glow2) 26%, transparent), transparent 70%),
+    radial-gradient(40% 60% at 70% 110%, color-mix(in oklab, var(--accent3) 14%, transparent), transparent 70%),
     var(--surface);
 }
 .text-gradient {
-  background: linear-gradient(100deg, var(--text) 30%, color-mix(in oklab, var(--signal) 85%, var(--text)));
+  background: linear-gradient(100deg, var(--text) 20%, var(--signal) 62%, var(--accent2) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

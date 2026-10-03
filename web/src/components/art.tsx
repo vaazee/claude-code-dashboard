@@ -57,11 +57,12 @@ export function OrbitHero({ live }: { live: SessionSummary[] }) {
         <defs>
           <radialGradient id="sun" cx="50%" cy="45%" r="60%">
             <stop offset="0%" stopColor="#fff" stopOpacity="0.95" />
-            <stop offset="35%" stopColor="var(--signal)" />
-            <stop offset="100%" stopColor="var(--glow1)" />
+            <stop offset="30%" stopColor="var(--signal)" />
+            <stop offset="100%" stopColor="var(--accent2)" />
           </radialGradient>
           <radialGradient id="sun-glow">
-            <stop offset="0%" stopColor="var(--signal)" stopOpacity="0.45" />
+            <stop offset="0%" stopColor="var(--accent2)" stopOpacity="0.4" />
+            <stop offset="60%" stopColor="var(--signal)" stopOpacity="0.12" />
             <stop offset="100%" stopColor="var(--signal)" stopOpacity="0" />
           </radialGradient>
         </defs>
@@ -72,14 +73,23 @@ export function OrbitHero({ live }: { live: SessionSummary[] }) {
             cx={st.x}
             cy={st.y}
             r={st.r}
-            fill="var(--text)"
+            fill={i % 5 === 0 ? 'var(--accent3)' : i % 7 === 0 ? 'var(--accent2)' : 'var(--text)'}
             className={motion ? 'twinkle' : undefined}
             style={{ ['--tw' as string]: `${st.d}s`, opacity: 0.35 }}
           />
         ))}
 
-        {RINGS.map((ring) => (
-          <ellipse key={ring.rx} rx={ring.rx} ry={ring.ry} fill="none" stroke="var(--line-strong)" strokeDasharray="2 5" strokeWidth="1" />
+        {RINGS.map((ring, i) => (
+          <ellipse
+            key={ring.rx}
+            rx={ring.rx}
+            ry={ring.ry}
+            fill="none"
+            stroke={['var(--signal)', 'var(--accent2)', 'var(--accent3)'][i]}
+            strokeOpacity="0.45"
+            strokeDasharray="2 5"
+            strokeWidth="1"
+          />
         ))}
 
         <circle r="46" fill="url(#sun-glow)" />
@@ -134,8 +144,8 @@ export function PlanetArt({ size = 96 }: { size?: number }) {
     <svg width={size} height={size * 0.75} viewBox="-60 -45 120 90" aria-hidden>
       <defs>
         <linearGradient id="planet-fill" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="var(--glow2)" />
-          <stop offset="100%" stopColor="var(--glow1)" />
+          <stop offset="0%" stopColor="var(--accent3)" />
+          <stop offset="100%" stopColor="var(--signal)" />
         </linearGradient>
       </defs>
       {[
@@ -151,7 +161,7 @@ export function PlanetArt({ size = 96 }: { size?: number }) {
         <ellipse rx="44" ry="12" fill="none" stroke="var(--line-strong)" strokeWidth="3" />
         <circle r="22" fill="url(#planet-fill)" />
         {/* front half of the ring passes in front of the planet */}
-        <path d="M -44 0 A 44 12 0 0 0 44 0" fill="none" stroke="var(--signal)" strokeWidth="3" />
+        <path d="M -44 0 A 44 12 0 0 0 44 0" fill="none" stroke="var(--accent2)" strokeWidth="3" />
       </g>
       <circle cx="-7" cy="-8" r="5" fill="#fff" opacity="0.35" />
     </svg>

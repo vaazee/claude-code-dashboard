@@ -51,7 +51,7 @@ You need Node 22.18 or newer. The server runs TypeScript directly through Node's
 
 Press ⌘K anywhere to jump to a session, project, skill or page, or to copy a resume command.
 
-**Appearance.** Use the palette button in the top bar to pick from seven themes: Midnight, Aurora, Ember and Nebula are dark; Daylight, Glacier and Orchid are light. You can also match your Mac's light or dark mode, choosing one theme for each, and turn animations off. Your choice is saved in the browser and applied before the page first paints. Chart and status colors stay on a colorblind-safe palette in every theme. Themes live in `web/src/lib/themes.ts`; to add one, append an entry with its surface, ink and accent colors.
+**Appearance.** Use the palette button in the top bar and click a theme to apply it. There are seven: Midnight, Aurora, Ember and Nebula are dark; Daylight, Glacier and Orchid are light. Each theme has three hues: a main accent, a contrasting partner used for the hero, heatmap and cost curves, and a third for small highlights. Turn on **Match macOS light and dark** to switch themes with your Mac, choosing one theme for each mode. You can also turn animations off. Your choice is saved in the browser and applied before the page first paints. Chart and status colors stay on a colorblind-safe palette in every theme. Themes live in `web/src/lib/themes.ts`; to add one, append an entry with its surface, ink and three accent colors (`signal`, `accent2`, `accent3`).
 
 ## How it works
 
@@ -65,6 +65,7 @@ Press ⌘K anywhere to jump to a session, project, skill or page, or to copy a r
 - **Live sessions** come from `~/.claude/sessions/<pid>.json`. Each pid is verified against the process start time, so a reused pid isn't shown as alive.
 - **Transcripts** (`~/.claude/projects/*/<session>.jsonl`, plus `subagents/`) are parsed incrementally. ccdash remembers how far into each file it has read and only parses new bytes, so a warm start takes milliseconds.
 - **Cost** is the API-equivalent price. The pricing table in `shared/pricing.ts` is ported from the `usage-cost` skill, and requests are deduplicated by message id and request id. Daily totals match `usage_cost.py` to the cent, and subagent usage is included on top.
+- **Resumed sessions**: when you resume a conversation, Claude Code copies the earlier records into the new session's file. ccdash credits each record to the session it actually happened in, using the `sessionId` it carries, and links the two. The resumed session shows only what it cost after resuming, with a link back to the original and the spend before it. Nothing is counted twice.
 - **Redaction** (`server/src/lib/redact.ts`) masks token-like values and secret-named keys before any config leaves the server.
 - **Security**: the server binds to 127.0.0.1 only and answers only to `localhost` Host headers, which blocks DNS rebinding. Write actions also require a custom header, which blocks CSRF. "Stop session" can only signal pids that Claude Code registered as live sessions.
 

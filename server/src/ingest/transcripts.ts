@@ -111,7 +111,7 @@ export class TranscriptIndex {
       ),
       upsertSession: db.prepare(
         `INSERT INTO sessions(id, project_dir, cwd, git_branch, version, entrypoint, ai_title, custom_title,
-           first_prompt, last_prompt, started_at, last_at, prompts, cc_cost, permission_mode)
+           first_prompt, last_prompt, started_at, last_at, cc_cost, permission_mode, resumed_from)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            project_dir = COALESCE(sessions.project_dir, excluded.project_dir),
@@ -125,9 +125,9 @@ export class TranscriptIndex {
            last_prompt = COALESCE(excluded.last_prompt, sessions.last_prompt),
            started_at = MIN(COALESCE(sessions.started_at, excluded.started_at), COALESCE(excluded.started_at, sessions.started_at)),
            last_at = MAX(COALESCE(sessions.last_at, excluded.last_at), COALESCE(excluded.last_at, sessions.last_at)),
-           prompts = sessions.prompts + excluded.prompts,
            cc_cost = COALESCE(excluded.cc_cost, sessions.cc_cost),
-           permission_mode = COALESCE(excluded.permission_mode, sessions.permission_mode)`,
+           permission_mode = COALESCE(excluded.permission_mode, sessions.permission_mode),
+           resumed_from = COALESCE(sessions.resumed_from, excluded.resumed_from)`,
       ),
       upsertUsage: db.prepare(
         `INSERT INTO usage(key, session_id, agent_id, file, ts, day, model, speed, input, output, write5m, write1h, read, cost, savings, priced)
@@ -147,6 +147,8 @@ export class TranscriptIndex {
         'INSERT OR IGNORE INTO agents(id, session_id, agent_type, description, file) VALUES (?, ?, ?, ?, ?)',
       ),
       filesOfSession: db.prepare('SELECT path FROM files WHERE session_id = ?'),
+      insertPrompt: db.prepare('INSERT OR IGNORE INTO prompts(uuid, session_id, ts) VALUES (?, ?, ?)'),
+      countPrompts: db.prepare('UPDATE sessions SET prompts = (SELECT COUNT(*) FROM prompts WHERE session_id = ?) WHERE id = ?'),
     };
   }
 
@@ -204,7 +206,7 @@ export class TranscriptIndex {
 
   private resetSession(sessionId: string) {
     tx(this.db, () => {
-      for (const t of ['usage', 'tools', 'agents']) {
+      for (const t of ['usage', 'tools', 'agents', 'prompts']) {
         this.db.prepare(`DELETE FROM ${t} WHERE session_id = ?`).run(sessionId);
       }
       this.db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
@@ -221,8 +223,17 @@ export class TranscriptIndex {
   }
 
   private processChunk(ref: FileRef, text: string, baseOffset: number) {
-    const patch = emptyPatch();
     const isMain = ref.agentId === null;
+    // A resumed session's file starts with a copy of the earlier conversation, and every
+    // copied record keeps its original sessionId. Credit each record to the session it
+    // actually happened in, and remember the link so the UI can show the chain.
+    const patches = new Map<string, SessionPatch & { resumedFrom: string | null }>();
+    const patchFor = (sid: string) => {
+      let p = patches.get(sid);
+      if (!p) patches.set(sid, (p = { ...emptyPatch(), resumedFrom: null }));
+      return p;
+    };
+    patchFor(ref.sessionId);
     let pos = baseOffset;
     for (const line of text.split('\n')) {
       const lineOffset = pos;
@@ -234,6 +245,9 @@ export class TranscriptIndex {
       } catch {
         continue;
       }
+      const sid: string = isMain && typeof rec.sessionId === 'string' && rec.sessionId ? rec.sessionId : ref.sessionId;
+      if (sid !== ref.sessionId) patchFor(ref.sessionId).resumedFrom ??= sid;
+      const patch = patchFor(sid);
       const ts = rec.timestamp ? Date.parse(rec.timestamp) : NaN;
       if (Number.isFinite(ts)) {
         patch.startedAt = patch.startedAt == null ? ts : Math.min(patch.startedAt, ts);
@@ -265,7 +279,8 @@ export class TranscriptIndex {
             if (rec.isSidechain) break;
             const p = promptOf(rec);
             if (p) {
-              patch.prompts++;
+              // Keyed by record uuid, so a prompt copied into a resumed file is counted once.
+              this.q.insertPrompt.run(rec.uuid ?? `${ref.path}:${lineOffset}`, sid, Number.isFinite(ts) ? ts : null);
               if (!p.command) {
                 patch.firstPrompt ??= p.text.slice(0, 2000);
                 patch.lastPrompt = p.text.slice(0, 2000);
@@ -276,29 +291,33 @@ export class TranscriptIndex {
         }
       }
 
-      if (rec.type === 'assistant' && Number.isFinite(ts)) this.recordAssistant(ref, rec, ts, lineOffset);
+      if (rec.type === 'assistant' && Number.isFinite(ts)) this.recordAssistant(ref, sid, rec, ts, lineOffset);
     }
 
-    this.q.upsertSession.run(
-      ref.sessionId,
-      ref.projectDir,
-      patch.cwd,
-      patch.gitBranch,
-      patch.version,
-      patch.entrypoint,
-      patch.aiTitle,
-      patch.customTitle,
-      patch.firstPrompt,
-      patch.lastPrompt ?? patch.lastPromptRecord,
-      patch.startedAt,
-      patch.lastAt,
-      patch.prompts,
-      patch.ccCost,
-      patch.permissionMode,
-    );
+    for (const [sid, patch] of patches) {
+      // A session seen only through another file's copy still gets a row, so its cost stays visible.
+      this.q.upsertSession.run(
+        sid,
+        ref.projectDir,
+        patch.cwd,
+        patch.gitBranch,
+        patch.version,
+        patch.entrypoint,
+        patch.aiTitle,
+        patch.customTitle,
+        patch.firstPrompt,
+        patch.lastPrompt ?? patch.lastPromptRecord,
+        patch.startedAt,
+        patch.lastAt,
+        patch.ccCost,
+        patch.permissionMode,
+        patch.resumedFrom,
+      );
+      this.q.countPrompts.run(sid, sid);
+    }
   }
 
-  private recordAssistant(ref: FileRef, rec: any, ts: number, lineOffset: number) {
+  private recordAssistant(ref: FileRef, sessionId: string, rec: any, ts: number, lineOffset: number) {
     const msg = rec.message ?? {};
     const day = localDateOf(ts);
     const model: string = msg.model ?? '';
@@ -309,7 +328,7 @@ export class TranscriptIndex {
       const key = msg.id || rec.requestId ? `${msg.id ?? ''}|${rec.requestId ?? ''}` : `${ref.path}:${lineOffset}`;
       this.q.upsertUsage.run(
         key,
-        ref.sessionId,
+        sessionId,
         ref.agentId,
         ref.path,
         ts,
@@ -332,7 +351,7 @@ export class TranscriptIndex {
         const info = describeTool(block.name, block.input);
         this.q.insertTool.run(
           block.id,
-          ref.sessionId,
+          sessionId,
           ref.agentId,
           ref.path,
           ts,

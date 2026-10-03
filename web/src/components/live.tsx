@@ -108,7 +108,9 @@ export function LiveLane({ s, index }: { s: SessionSummary; index: number }) {
             <div className="display num text-[19px] font-[600]" style={{ color: status.tone === 'good' ? 'var(--text)' : 'var(--text-2)' }}>
               {usd(s.cost)}
             </div>
-            <div className="text-[11.5px] text-ink-3">{s.prompts} prompts</div>
+            <div className="text-[11.5px] text-ink-3" title={s.resumedFrom ? `Resumed from “${s.resumedFrom.title}”` : undefined}>
+              {s.resumedFrom ? `+${usd(s.resumedFrom.cost)} before resume` : `${s.prompts} prompts`}
+            </div>
           </div>
         </div>
       </Link>

@@ -216,7 +216,7 @@ export function SkillsPage() {
                 </div>
                 {m.calls > 0 && (
                   <div className="mt-1.5 max-w-xs">
-                    <Meter value={m.calls} max={maxMcp} />
+                    <Meter value={m.calls} max={maxMcp} color="var(--accent2)" />
                   </div>
                 )}
               </div>

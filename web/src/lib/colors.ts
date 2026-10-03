@@ -4,12 +4,12 @@ const SLOTS = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)', 
 // Fixed assignments, newest flagship first. Older models of a family share a slot.
 const FIXED: [RegExp, number][] = [
   [/^claude-opus-5-5/, 0],
-  [/^claude-fable/, 1],
+  [/^claude-opus-5/, 1],
   [/^claude-opus-4-8/, 2],
   [/^claude-sonnet/, 3],
   [/^claude-haiku/, 4],
   [/^claude-opus-4/, 5],
-  [/^claude-opus-5/, 6],
+  [/^claude-fable/, 6],
   [/^claude-mythos/, 7],
 ];
 

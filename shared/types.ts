@@ -39,6 +39,10 @@ export type SessionSummary = {
   linesRemoved: number;
   subagents: number;
   live: LiveInfo | null;
+  /** The session this one was resumed from, and what was spent before resuming (whole chain). */
+  resumedFrom: { id: string; title: string; cost: number } | null;
+  /** Sessions that later resumed this one. */
+  continuedIn: { id: string; title: string }[];
 };
 
 export type DailyPoint = { day: string; cost: number; requests: number };
