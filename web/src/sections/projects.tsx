@@ -3,9 +3,10 @@ import { Brain, FileText, Plug } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Avatar, nameColor, projectEmoji } from '@/components/avatar';
 import { Sparkbars } from '@/components/charts';
-import { Empty, ErrorState, PageHeader, PageSkeleton, Pill, SearchInput, Segmented } from '@/components/ui';
+import { Empty, ErrorState, MetricToggle, PageHeader, PageSkeleton, Pill, SearchInput, Segmented } from '@/components/ui';
+import { formatMetric, useMetric } from '@/lib/metric';
 import { useProjects } from '@/lib/api';
-import { ago, int, shortDay, usd } from '@/lib/format';
+import { ago, int, shortDay } from '@/lib/format';
 import { localDateOf } from '@shared/pricing.ts';
 
 type Sort = 'recent' | 'cost' | 'sessions';
@@ -14,16 +15,19 @@ export function ProjectsPage() {
   const { data, error, isLoading } = useProjects();
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<Sort>('recent');
+  const [metric] = useMetric();
+  const byTokens = metric === 'tokens';
+  const fmt = formatMetric(metric);
   const dayLabels = useMemo(() => Array.from({ length: 14 }, (_, i) => shortDay(localDateOf(Date.now() - (13 - i) * 86400000))), []);
 
   const rows = useMemo(() => {
     const needle = q.toLowerCase();
     const out = (data ?? []).filter((p) => !needle || p.cwd.toLowerCase().includes(needle));
-    if (sort === 'cost') out.sort((a, b) => b.cost - a.cost);
+    if (sort === 'cost') out.sort((a, b) => (byTokens ? b.tokens - a.tokens : b.cost - a.cost));
     if (sort === 'sessions') out.sort((a, b) => b.sessions - a.sessions);
     if (sort === 'recent') out.sort((a, b) => (b.lastAt ?? 0) - (a.lastAt ?? 0));
     return out;
-  }, [data, q, sort]);
+  }, [data, q, sort, byTokens]);
 
   if (isLoading) return <PageSkeleton />;
   if (error) return <ErrorState error={error} />;
@@ -35,6 +39,7 @@ export function ProjectsPage() {
         icon="📁"
         actions={
           <>
+            <MetricToggle />
             <SearchInput value={q} onChange={setQ} placeholder="Filter by path" className="w-56" />
             <Segmented<Sort>
               label="Sort projects"
@@ -42,7 +47,7 @@ export function ProjectsPage() {
               onChange={setSort}
               options={[
                 { value: 'recent', label: 'Recent' },
-                { value: 'cost', label: 'Cost' },
+                { value: 'cost', label: byTokens ? 'Tokens' : 'Cost' },
                 { value: 'sessions', label: 'Sessions' },
               ]}
             />
@@ -89,7 +94,7 @@ export function ProjectsPage() {
               </div>
               <div className="grid grid-cols-3 gap-4 text-[13px]">
                 <div>
-                  <div className="display num text-[17px] font-[600] text-ink">{usd(p.cost)}</div>
+                  <div className="display num text-[17px] font-[600] text-ink">{fmt(byTokens ? p.tokens : p.cost)}</div>
                   <div className="text-[11.5px] text-ink-3">total</div>
                 </div>
                 <div>
@@ -102,7 +107,7 @@ export function ProjectsPage() {
                 </div>
               </div>
               <div>
-                <Sparkbars values={p.daily} labels={dayLabels} height={34} color={nameColor(p.project)} />
+                <Sparkbars values={byTokens ? p.dailyTokens : p.daily} labels={dayLabels} height={34} color={nameColor(p.project)} format={fmt} />
                 <div className="mt-1 text-[11px] text-ink-3">last 14 days</div>
               </div>
             </div>

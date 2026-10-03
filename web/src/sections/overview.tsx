@@ -5,9 +5,10 @@ import { OrbitHero } from '@/components/art';
 import { DailyCostChart, Sparkbars } from '@/components/charts';
 import { LiveLane } from '@/components/live';
 import { SessionList } from '@/components/session-list';
-import { ErrorState, PageSkeleton, Panel } from '@/components/ui';
+import { ErrorState, MetricToggle, PageSkeleton, Panel } from '@/components/ui';
 import { useAnalytics, useOverview } from '@/lib/api';
 import { plural, shortDay, tokens, usd } from '@/lib/format';
+import { formatMetric, useMetric } from '@/lib/metric';
 
 function greeting(live: number, busy: number): string {
   if (!live) return 'Nothing running right now';
@@ -78,6 +79,8 @@ function PanelTitle({ emoji, children }: { emoji: string; children: React.ReactN
 export function OverviewPage() {
   const { data, error, isLoading } = useOverview();
   const month = useAnalytics('30');
+  const [metric] = useMetric();
+  const byTokens = metric === 'tokens';
   if (isLoading) return <PageSkeleton />;
   if (error || !data) return <ErrorState error={error} />;
   const k = data.kpis;
@@ -138,10 +141,11 @@ export function OverviewPage() {
         <StatTile hue="var(--accent2)" emoji="📈" label="30-day rhythm" className="col-span-2 md:col-span-1">
           <Sparkbars
             className="mt-3"
-            values={data.daily.map((d) => d.cost)}
+            values={data.daily.map((d) => (byTokens ? d.tokens : d.cost))}
             labels={data.daily.map((d) => shortDay(d.day))}
             height={40}
             color="var(--accent2)"
+            format={formatMetric(metric)}
           />
         </StatTile>
       </div>
@@ -162,8 +166,12 @@ export function OverviewPage() {
       </Panel>
 
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <Panel title={<PanelTitle emoji="📊">Daily spend, last 30 days</PanelTitle>} aside={<Link to="/analytics" className="hover:text-signal">Open analytics</Link>}>
-          {month.data ? <DailyCostChart data={month.data.daily} height={280} /> : <div className="h-[300px]" />}
+        <Panel title={<PanelTitle emoji="📊">{byTokens ? 'Daily tokens' : 'Daily spend'}, last 30 days</PanelTitle>} aside={<MetricToggle />}>
+          {month.data ? (
+            <DailyCostChart data={byTokens ? month.data.dailyTokens : month.data.daily} metric={metric} height={280} />
+          ) : (
+            <div className="h-[300px]" />
+          )}
         </Panel>
         <Panel title={<PanelTitle emoji="🕘">Recent sessions</PanelTitle>} aside={<Link to="/sessions" className="hover:text-signal">See all</Link>} bodyClassName="p-0">
           {data.recent.length ? <SessionList sessions={data.recent} /> : <div className="p-5 text-ink-3">No past sessions yet.</div>}

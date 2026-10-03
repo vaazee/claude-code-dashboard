@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { modelColor } from '@/lib/colors';
-import { modelName, shortDay, usd } from '@/lib/format';
+import { modelName, shortDay, tokens, usd } from '@/lib/format';
+import { axisMetric, formatMetric, type Metric } from '@/lib/metric';
 import { cx } from './ui';
 
 type DailyRow = { day: string; total: number } & Record<string, number | string>;
@@ -47,8 +48,8 @@ export function Legend({ items }: { items: { key: string; label: string; color: 
   );
 }
 
-/** Daily spend stacked by model. Models beyond the top six fold into "Other". */
-export function DailyCostChart({ data, height = 260 }: { data: DailyRow[]; height?: number }) {
+/** Daily spend (or tokens) stacked by model. Models beyond the top six fold into "Other". */
+export function DailyCostChart({ data, height = 260, metric = 'cost' }: { data: DailyRow[]; height?: number; metric?: Metric }) {
   const { rows, series } = useMemo(() => {
     const totals = new Map<string, number>();
     for (const r of data)
@@ -88,8 +89,8 @@ export function DailyCostChart({ data, height = 260 }: { data: DailyRow[]; heigh
             tickFormatter={shortDay}
             tickMargin={8}
           />
-          <YAxis tickLine={false} axisLine={false} width={48} tickFormatter={(v) => `$${v}`} />
-          <Tooltip content={<ChartTip />} cursor={{ fill: 'var(--surface-3)', opacity: 0.5 }} />
+          <YAxis tickLine={false} axisLine={false} width={52} tickFormatter={axisMetric(metric)} />
+          <Tooltip content={<ChartTip valueFormat={formatMetric(metric)} />} cursor={{ fill: 'var(--surface-3)', opacity: 0.5 }} />
           {series.map((s, i) => (
             <Bar
               key={s.key}
@@ -160,10 +161,17 @@ export function Sparkbars({
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /** Weekday × hour activity grid on a single-hue sequential ramp. */
-export function ActivityHeatmap({ cells }: { cells: { dow: number; hour: number; requests: number; cost: number }[] }) {
+export function ActivityHeatmap({
+  cells,
+  metric = 'cost',
+}: {
+  cells: { dow: number; hour: number; requests: number; cost: number; tokens: number }[];
+  metric?: Metric;
+}) {
+  const value = (c: { cost: number; tokens: number } | undefined) => (c ? (metric === 'cost' ? c.cost : c.tokens) : 0);
   const [hover, setHover] = useState<{ dow: number; hour: number } | null>(null);
   const grid = new Map(cells.map((c) => [`${c.dow}-${c.hour}`, c]));
-  const max = Math.max(...cells.map((c) => c.requests), 1);
+  const max = Math.max(...cells.map(value), 0.0001);
   const step = (n: number) => {
     if (!n) return 'var(--seq-0)';
     const t = n / max;
@@ -185,7 +193,7 @@ export function ActivityHeatmap({ cells }: { cells: { dow: number; hour: number;
                     key={h}
                     onMouseEnter={() => setHover({ dow: d, hour: h })}
                     className={cx('aspect-square rounded-[3px]', hover?.dow === d && hover?.hour === h && 'ring-2 ring-ink')}
-                    style={{ background: step(c?.requests ?? 0) }}
+                    style={{ background: step(value(c)) }}
                   />
                 );
               })}
@@ -204,8 +212,9 @@ export function ActivityHeatmap({ cells }: { cells: { dow: number; hour: number;
           {hover ? (
             <>
               {DOW[hover.dow]} {hover.hour}:00–{hover.hour + 1}:00 ·{' '}
-              <span className="num text-ink">{hovered?.requests ?? 0} requests</span> ·{' '}
-              <span className="num text-ink">{usd(hovered?.cost ?? 0)}</span>
+              <span className="num text-ink">{usd(hovered?.cost ?? 0)}</span> ·{' '}
+              <span className="num text-ink">{tokens(hovered?.tokens ?? 0)} tokens</span> ·{' '}
+              <span className="num text-ink">{hovered?.requests ?? 0} requests</span>
             </>
           ) : (
             'Hover a cell for details'
@@ -219,6 +228,55 @@ export function ActivityHeatmap({ cells }: { cells: { dow: number; hour: number;
           More
         </span>
       </div>
+    </div>
+  );
+}
+
+const MIX = [
+  { key: 'read', label: 'Cache reads', color: 'var(--s1)' },
+  { key: 'write', label: 'Cache writes', color: 'var(--s2)' },
+  { key: 'input', label: 'Uncached input', color: 'var(--s3)' },
+  { key: 'output', label: 'Output', color: 'var(--s4)' },
+] as const;
+
+/** Daily tokens stacked by kind: cache reads, cache writes, uncached input, output. */
+export function TokenMixChart({
+  data,
+  height = 240,
+}: {
+  data: { day: string; input: number; write: number; read: number; output: number }[];
+  height?: number;
+}) {
+  if (!data.some((d) => d.input + d.write + d.read + d.output > 0)) {
+    return <div className="grid place-items-center text-[13px] text-ink-3" style={{ height }}>No usage in this range.</div>;
+  }
+  const tickEvery = Math.max(1, Math.ceil(data.length / 7));
+  return (
+    <div>
+      <div className="mb-3">
+        <Legend items={MIX.map((m) => ({ key: m.key, label: m.label, color: m.color }))} />
+      </div>
+      <ResponsiveContainer width="100%" height={height}>
+        <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }} barCategoryGap="22%">
+          <CartesianGrid vertical={false} />
+          <XAxis dataKey="day" tickLine={false} axisLine={false} interval={tickEvery - 1} tickFormatter={shortDay} tickMargin={8} />
+          <YAxis tickLine={false} axisLine={false} width={52} tickFormatter={(v) => tokens(v)} />
+          <Tooltip content={<ChartTip valueFormat={tokens} />} cursor={{ fill: 'var(--surface-3)', opacity: 0.5 }} />
+          {MIX.map((m, i) => (
+            <Bar
+              key={m.key}
+              dataKey={m.key}
+              name={m.label}
+              stackId="t"
+              fill={m.color}
+              stroke="var(--surface)"
+              strokeWidth={1}
+              radius={i === MIX.length - 1 ? [4, 4, 0, 0] : 0}
+              isAnimationActive={false}
+            />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }

@@ -45,7 +45,7 @@ export type SessionSummary = {
   continuedIn: { id: string; title: string }[];
 };
 
-export type DailyPoint = { day: string; cost: number; requests: number };
+export type DailyPoint = { day: string; cost: number; tokens: number; requests: number };
 
 export type Overview = {
   kpis: {
@@ -74,7 +74,7 @@ export type SessionDetail = SessionSummary & {
   tools: { name: string; count: number }[];
   files: { path: string; reads: number; edits: number; added: number; removed: number }[];
   agents: { id: string; type: string | null; description: string | null; cost: number; requests: number }[];
-  timeline: { ts: number; cost: number; output: number; model: string; agentId: string | null }[];
+  timeline: { ts: number; cost: number; tokens: number; output: number; model: string; agentId: string | null }[];
 };
 
 export type ToolResult = { text: string; isError: boolean; truncated: boolean };
@@ -100,11 +100,15 @@ export type Transcript = { items: TranscriptItem[]; truncated: boolean };
 
 export type Analytics = {
   range: { from: string | null; to: string };
-  totals: { cost: number; sessions: number; requests: number; prompts: number; toolCalls: number; savings: number };
+  totals: { cost: number; tokens: number; sessions: number; requests: number; prompts: number; toolCalls: number; savings: number };
+  /** Per-day value by model; `daily` is cost in USD, `dailyTokens` is tokens (input + cache + output). */
   daily: Array<{ day: string; total: number } & Record<string, number | string>>;
+  dailyTokens: Array<{ day: string; total: number } & Record<string, number | string>>;
+  /** Per-day tokens split by kind. */
+  tokenMix: { day: string; input: number; write: number; read: number; output: number }[];
   models: ModelRow[];
-  projects: { project: string; cwd: string; cost: number; sessions: number; lastAt: number | null }[];
-  heatmap: { dow: number; hour: number; requests: number; cost: number }[];
+  projects: { project: string; cwd: string; cost: number; tokens: number; sessions: number; lastAt: number | null }[];
+  heatmap: { dow: number; hour: number; requests: number; cost: number; tokens: number }[];
   tools: { name: string; count: number }[];
   cache: { input: number; write: number; read: number; output: number; savings: number; hitRate: number };
   lines: { day: string; added: number; removed: number }[];
@@ -116,6 +120,7 @@ export type ProjectInfo = {
   cwd: string;
   cwdAbs: string;
   cost: number;
+  tokens: number;
   sessions: number;
   prompts: number;
   lastAt: number | null;
@@ -125,6 +130,7 @@ export type ProjectInfo = {
   claudeMd: string[];
   memoryFiles: number;
   daily: number[]; // last 14 days cost
+  dailyTokens: number[]; // last 14 days tokens
 };
 
 export type SkillInfo = {

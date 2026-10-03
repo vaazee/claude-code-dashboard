@@ -1,19 +1,36 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Avatar, nameColor, projectEmoji } from '@/components/avatar';
-import { ActivityHeatmap, ChartTip, DailyCostChart, Legend } from '@/components/charts';
-import { ErrorState, Meter, PageHeader, PageSkeleton, Panel, Segmented, Stat, Tip } from '@/components/ui';
+import { ActivityHeatmap, ChartTip, DailyCostChart, Legend, TokenMixChart } from '@/components/charts';
+import { ErrorState, Meter, MetricToggle, PageHeader, PageSkeleton, Panel, Segmented, Stat, Tip } from '@/components/ui';
 import { useAnalytics } from '@/lib/api';
 import { modelColor } from '@/lib/colors';
 import { int, modelName, pct, plural, shortDay, tokens, usd } from '@/lib/format';
+import { formatMetric, useMetric } from '@/lib/metric';
 
 type Range = '7' | '30' | '90' | '365' | 'all';
+
+const sumTokens = (t: { input: number; output: number; write: number; read: number }) => t.input + t.output + t.write + t.read;
 
 export function AnalyticsPage() {
   const [range, setRange] = useState<Range>('30');
   const { data, error, isLoading } = useAnalytics(range);
+  const [metric] = useMetric();
+  const fmt = formatMetric(metric);
+  const byTokens = metric === 'tokens';
+  // Rankings follow the chosen measure: the costliest model isn't always the hungriest.
+  const models = useMemo(
+    () => [...(data?.models ?? [])].sort((a, b) => (byTokens ? sumTokens(b.tokens) - sumTokens(a.tokens) : b.cost - a.cost)),
+    [data, byTokens],
+  );
+  const projects = useMemo(
+    () => [...(data?.projects ?? [])].sort((a, b) => (byTokens ? b.tokens - a.tokens : b.cost - a.cost)),
+    [data, byTokens],
+  );
 
   const controls = (
+    <>
+    <MetricToggle />
     <Segmented<Range>
       label="Time range"
       value={range}
@@ -26,14 +43,18 @@ export function AnalyticsPage() {
         { value: 'all', label: 'All time' },
       ]}
     />
+    </>
   );
 
   if (isLoading) return <PageSkeleton />;
   if (error || !data) return <ErrorState error={error} />;
   const t = data.totals;
   const days = data.daily.length || 1;
-  const maxModel = data.models[0]?.cost ?? 0;
-  const maxProject = data.projects[0]?.cost ?? 0;
+  const modelValue = (m: (typeof models)[number]) => (byTokens ? sumTokens(m.tokens) : m.cost);
+  const projectValue = (p: (typeof projects)[number]) => (byTokens ? p.tokens : p.cost);
+  const total = byTokens ? t.tokens : t.cost;
+  const maxModel = models[0] ? modelValue(models[0]) : 0;
+  const maxProject = projects[0] ? projectValue(projects[0]) : 0;
   const maxTool = data.tools[0]?.count ?? 0;
   const c = data.cache;
   const promptTokens = c.input + c.write + c.read;
@@ -42,26 +63,34 @@ export function AnalyticsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Analytics" icon="📈" actions={controls}>
-        API-equivalent cost of your Claude Code usage. On a Pro or Max plan this is the value you consumed, not a bill.
+        {byTokens
+          ? 'Tokens processed by Claude Code: uncached input, cache writes, cache reads and output.'
+          : 'API-equivalent cost of your Claude Code usage. On a Pro or Max plan this is the value you consumed, not a bill.'}
       </PageHeader>
 
       <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
-        <Stat label="Total spend" value={usd(t.cost)} hint={`${usd(t.cost / days)} a day`} />
-        <Stat label="Sessions" value={int(t.sessions)} hint={t.sessions ? `${usd(t.cost / t.sessions)} each` : undefined} />
-        <Stat label="Prompts" value={int(t.prompts)} hint={t.prompts ? `${usd(t.cost / t.prompts)} each` : undefined} />
+        <Stat label={byTokens ? 'Total tokens' : 'Total spend'} value={fmt(total)} hint={`${fmt(total / days)} a day`} />
+        <Stat label="Sessions" value={int(t.sessions)} hint={t.sessions ? `${fmt(total / t.sessions)} each` : undefined} />
+        <Stat label="Prompts" value={int(t.prompts)} hint={t.prompts ? `${fmt(total / t.prompts)} each` : undefined} />
         <Stat label="API requests" value={int(t.requests)} />
         <Stat label="Tool calls" value={int(t.toolCalls)} />
         <Stat label="Saved by caching" value={usd(t.savings)} hint={`${pct(c.hitRate)} of input from cache`} />
       </div>
 
-      <Panel title="Daily spend by model">
-        <DailyCostChart data={data.daily} height={300} />
+      <Panel title={byTokens ? 'Daily tokens by model' : 'Daily spend by model'}>
+        <DailyCostChart data={byTokens ? data.dailyTokens : data.daily} metric={metric} height={300} />
       </Panel>
 
+      {byTokens && (
+        <Panel title="Daily tokens by kind" aside="Cache reads cost a tenth of uncached input">
+          <TokenMixChart data={data.tokenMix} height={260} />
+        </Panel>
+      )}
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Panel title="Spend by model">
+        <Panel title={byTokens ? 'Tokens by model' : 'Spend by model'}>
           <ul className="space-y-3.5">
-            {data.models.map((m) => (
+            {models.map((m) => (
               <li key={m.model}>
                 <div className="mb-1 flex items-baseline justify-between gap-3 text-[13px]">
                   <span className="inline-flex items-center gap-1.5 text-ink">
@@ -70,21 +99,22 @@ export function AnalyticsPage() {
                     <span className="text-[11.5px] text-ink-3">{m.model}</span>
                   </span>
                   <span className="num whitespace-nowrap text-ink">
-                    {usd(m.cost)} <span className="text-ink-3">· {pct(t.cost ? m.cost / t.cost : 0)}</span>
+                    {fmt(modelValue(m))} <span className="text-ink-3">· {pct(total ? modelValue(m) / total : 0)}</span>
                   </span>
                 </div>
-                <Meter value={m.cost} max={maxModel} color={modelColor(m.model)} />
+                <Meter value={modelValue(m)} max={maxModel} color={modelColor(m.model)} />
                 <div className="mt-1 text-[11.5px] text-ink-3">
-                  {int(m.requests)} requests · {tokens(m.tokens.output)} output · {tokens(m.tokens.read)} cache reads
+                  {int(m.requests)} requests · {byTokens ? usd(m.cost) : `${tokens(sumTokens(m.tokens))} tokens`} · {tokens(m.tokens.output)} output ·{' '}
+                  {tokens(m.tokens.read)} cache reads
                 </div>
               </li>
             ))}
           </ul>
         </Panel>
 
-        <Panel title="Spend by project" aside={`${data.projects.length} projects`}>
+        <Panel title={byTokens ? 'Tokens by project' : 'Spend by project'} aside={`${projects.length} projects`}>
           <ul className="max-h-[360px] space-y-3 overflow-y-auto pr-1">
-            {data.projects.map((p) => (
+            {projects.map((p) => (
               <li key={p.cwd}>
                 <div className="mb-1 flex items-baseline justify-between gap-3 text-[13px]">
                   <Tip content={p.cwd}>
@@ -94,18 +124,18 @@ export function AnalyticsPage() {
                     </span>
                   </Tip>
                   <span className="num whitespace-nowrap text-ink">
-                    {usd(p.cost)} <span className="text-ink-3">· {plural(p.sessions, 'session')}</span>
+                    {fmt(projectValue(p))} <span className="text-ink-3">· {plural(p.sessions, 'session')}</span>
                   </span>
                 </div>
-                <Meter value={p.cost} max={maxProject} color={nameColor(p.project)} />
+                <Meter value={projectValue(p)} max={maxProject} color={nameColor(p.project)} />
               </li>
             ))}
           </ul>
         </Panel>
       </div>
 
-      <Panel title="When you work" aside="API requests by weekday and hour">
-        <ActivityHeatmap cells={data.heatmap} />
+      <Panel title="When you work" aside={`${byTokens ? 'Tokens' : 'Spend'} by weekday and hour`}>
+        <ActivityHeatmap cells={data.heatmap} metric={metric} />
       </Panel>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

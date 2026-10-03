@@ -174,7 +174,9 @@ export function buildProjects(q: Queries): ProjectInfo[] {
       mcpServers: [...mcp],
       claudeMd: claudeMdFor(r.cwd).map((f) => path.relative(r.cwd, f)),
       memoryFiles: listDir(memDir).filter((f) => f.isFile() && f.name.endsWith('.md')).length,
+      tokens: r.tokens,
       daily: days.map((d) => r.daily.get(d) ?? 0),
+      dailyTokens: days.map((d) => r.dailyTokens.get(d) ?? 0),
     };
   });
 }

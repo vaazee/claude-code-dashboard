@@ -4,6 +4,7 @@ import { Search, X } from 'lucide-react';
 import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { PlanetArt } from './art';
 import { IconTile } from './avatar';
+import { useMetric, type Metric } from '@/lib/metric';
 
 export const cx = clsx;
 
@@ -250,6 +251,24 @@ export function Meter({ value, max, color = 'var(--signal)' }: { value: number; 
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-3">
       <div className="h-full rounded-full" style={{ width: `${w}%`, background: color }} />
+    </div>
+  );
+}
+
+/** Cost / Tokens switch. Every chart that reads useMetric() follows it. */
+export function MetricToggle({ className }: { className?: string }) {
+  const [metric, setMetric] = useMetric();
+  return (
+    <div className={className}>
+      <Segmented<Metric>
+        label="Measure charts by"
+        value={metric}
+        onChange={setMetric}
+        options={[
+          { value: 'cost', label: '$ Cost' },
+          { value: 'tokens', label: '# Tokens' },
+        ]}
+      />
     </div>
   );
 }

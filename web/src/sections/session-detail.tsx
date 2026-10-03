@@ -7,7 +7,8 @@ import { toast } from 'sonner';
 import { Avatar, projectEmoji } from '@/components/avatar';
 import { LiveRing, StatusLabel } from '@/components/live';
 import { TranscriptView } from '@/components/transcript';
-import { Button, cx, Empty, ErrorState, Meter, PageSkeleton, Panel, Stat, Tip, useNow } from '@/components/ui';
+import { Button, cx, Empty, ErrorState, Meter, MetricToggle, PageSkeleton, Panel, Stat, Tip, useNow } from '@/components/ui';
+import { formatMetric, useMetric } from '@/lib/metric';
 import { post, useEnv, useSession } from '@/lib/api';
 import { modelColor } from '@/lib/colors';
 import { dateTime, duration, int, modelName, time, tokens, usd } from '@/lib/format';
@@ -20,10 +21,11 @@ export function SessionDetailPage() {
   const now = useNow(1000);
   const env = useEnv();
 
+  const [metric] = useMetric();
   const curve = useMemo(() => {
     let acc = 0;
-    return (s?.timeline ?? []).map((p) => ({ ts: p.ts, cost: (acc += p.cost) }));
-  }, [s?.timeline]);
+    return (s?.timeline ?? []).map((p) => ({ ts: p.ts, value: (acc += metric === 'tokens' ? p.tokens : p.cost) }));
+  }, [s?.timeline, metric]);
 
   if (isLoading) return <PageSkeleton />;
   if (error || !s) {
@@ -170,7 +172,7 @@ export function SessionDetailPage() {
 
         <aside className="space-y-6">
           {curve.length > 1 && (
-            <Panel title="Cost over the session">
+            <Panel title={metric === 'tokens' ? 'Tokens over the session' : 'Cost over the session'} aside={<MetricToggle />}>
               <ResponsiveContainer width="100%" height={140}>
                 <AreaChart data={curve} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
                   <XAxis dataKey="ts" type="number" domain={['dataMin', 'dataMax']} hide />
@@ -180,12 +182,12 @@ export function SessionDetailPage() {
                       active && payload?.[0] ? (
                         <div className="rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[12px] shadow-lg">
                           <div className="text-ink-3">{time(payload[0].payload.ts)}</div>
-                          <div className="num font-medium text-ink">{usd(payload[0].payload.cost)}</div>
+                          <div className="num font-medium text-ink">{formatMetric(metric)(payload[0].payload.value)}</div>
                         </div>
                       ) : null
                     }
                   />
-                  <Area type="stepAfter" dataKey="cost" stroke="var(--accent2)" strokeWidth={2} fill="var(--accent2)" fillOpacity={0.14} isAnimationActive={false} />
+                  <Area type="stepAfter" dataKey="value" stroke="var(--accent2)" strokeWidth={2} fill="var(--accent2)" fillOpacity={0.14} isAnimationActive={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </Panel>
