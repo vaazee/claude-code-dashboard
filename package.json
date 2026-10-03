@@ -1,0 +1,22 @@
+{
+  "name": "ccdash",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Local dashboard for Claude Code sessions, costs, skills and config",
+  "type": "module",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "npm run dev -w server & npm run dev -w web",
+    "build": "npm run build -w web",
+    "start": "npm run build && npm run serve",
+    "serve": "node server/src/index.ts --open",
+    "test": "node --test 'server/test/*.test.ts'",
+    "typecheck": "tsc -p server && tsc -p web --noEmit"
+  }
+}

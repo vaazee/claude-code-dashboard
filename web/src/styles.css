@@ -1,0 +1,344 @@
+@import 'tailwindcss';
+
+/* ---------- surface + accent tokens
+   Defaults are the Midnight / Daylight themes so the page is themed even before JS runs;
+   the theme manager (src/lib/themes.ts) overrides these inline on <html>. */
+:root {
+  color-scheme: dark;
+  --bg: #121a2b;
+  --surface: #18223a;
+  --surface-2: #1d2843;
+  --surface-3: #25324f;
+  --line: #2a3858;
+  --line-strong: #3a4a70;
+  --text: #e9edf7;
+  --text-2: #a7b1c8;
+  --text-3: #7a86a1;
+  --signal: #8b9cff;
+  --signal-soft: #27305a;
+  --on-signal: #121a2b;
+  --glow1: #4f5fe0;
+  --glow2: #22d3ee;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-base]) {
+    color-scheme: light;
+    --bg: #eef1f7;
+    --surface: #ffffff;
+    --surface-2: #f5f7fb;
+    --surface-3: #e8ecf5;
+    --line: #d9deea;
+    --line-strong: #c3cadb;
+    --text: #18213a;
+    --text-2: #4a5573;
+    --text-3: #667190;
+    --signal: #4f5fe0;
+    --signal-soft: #e3e7ff;
+    --on-signal: #ffffff;
+    --glow1: #818cf8;
+    --glow2: #67e8f9;
+  }
+}
+
+/* ---------- data + status tokens follow the base, never the theme (validated palette) */
+:root,
+:root[data-base='dark'] {
+  --good: #3cc46a;
+  --warning: #fab219;
+  --critical: #e66767;
+  --good-soft: color-mix(in oklab, #3cc46a 16%, var(--surface));
+  --warning-soft: color-mix(in oklab, #fab219 16%, var(--surface));
+
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s4: #c98500;
+  --s5: #d55181;
+  --s6: #008300;
+  --s7: #9085e9;
+  --s8: #e66767;
+  --seq-0: var(--surface-3);
+  --seq-1: #184f95;
+  --seq-2: #256abf;
+  --seq-3: #3987e5;
+  --seq-4: #86b6ef;
+}
+:root[data-base='light'] {
+  color-scheme: light;
+  --good: #0ca30c;
+  --warning: #b57700;
+  --critical: #d03b3b;
+  --good-soft: #dff3df;
+  --warning-soft: #fbefd2;
+
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --s5: #e87ba4;
+  --s6: #008300;
+  --s7: #4a3aa7;
+  --s8: #e34948;
+  --seq-0: var(--surface-3);
+  --seq-1: #b7d3f6;
+  --seq-2: #6da7ec;
+  --seq-3: #2a78d6;
+  --seq-4: #184f95;
+}
+:root[data-base='dark'] {
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-base]) {
+    --good: #0ca30c;
+    --warning: #b57700;
+    --critical: #d03b3b;
+    --good-soft: #dff3df;
+    --warning-soft: #fbefd2;
+    --s1: #2a78d6;
+    --s2: #eb6834;
+    --s3: #1baf7a;
+    --s4: #eda100;
+    --s5: #e87ba4;
+    --s7: #4a3aa7;
+    --s8: #e34948;
+    --seq-1: #b7d3f6;
+    --seq-2: #6da7ec;
+    --seq-3: #2a78d6;
+    --seq-4: #184f95;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--text);
+  --color-ink-2: var(--text-2);
+  --color-ink-3: var(--text-3);
+  --color-signal: var(--signal);
+  --color-signal-soft: var(--signal-soft);
+  --color-on-signal: var(--on-signal);
+  --color-glow1: var(--glow1);
+  --color-glow2: var(--glow2);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-critical: var(--critical);
+  --font-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Schibsted Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  background:
+    radial-gradient(1200px 600px at 100% -10%, color-mix(in oklab, var(--glow2) 7%, transparent), transparent),
+    radial-gradient(900px 500px at -10% 0%, color-mix(in oklab, var(--glow1) 8%, transparent), transparent),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'ss01';
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.02em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: var(--signal-soft);
+}
+
+/* Scrollbars that don't shout */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* Live ring: a slow orbit for working sessions, a steady glow for idle ones */
+@keyframes orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+.ring-orbit {
+  animation: orbit 2.4s linear infinite;
+  transform-origin: center;
+}
+.ring-breathe {
+  animation: breathe 2.4s ease-out infinite;
+  transform-origin: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ring-orbit,
+  .ring-breathe,
+  .orbit-spin {
+    animation: none !important;
+  }
+}
+:root[data-motion='off'] *,
+:root[data-motion='off'] *::before,
+:root[data-motion='off'] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* Orbit hero: each ring turns at its own speed; paused lanes are idle sessions */
+.orbit-spin {
+  animation: orbit var(--orbit-dur, 30s) linear infinite;
+  transform-origin: 0 0;
+}
+.orbit-paused {
+  animation-play-state: paused;
+}
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+.twinkle {
+  animation: twinkle var(--tw, 4s) ease-in-out infinite;
+}
+
+/* Soft gradient wash used behind the hero and page headers */
+.mesh {
+  background:
+    radial-gradient(60% 90% at 0% 0%, color-mix(in oklab, var(--glow1) 26%, transparent), transparent 70%),
+    radial-gradient(50% 80% at 100% 10%, color-mix(in oklab, var(--glow2) 18%, transparent), transparent 70%),
+    var(--surface);
+}
+.text-gradient {
+  background: linear-gradient(100deg, var(--text) 30%, color-mix(in oklab, var(--signal) 85%, var(--text)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Markdown rendering for CLAUDE.md, memory files and transcript text */
+.prose-md {
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.prose-md > * + * {
+  margin-top: 0.7em;
+}
+.prose-md h1,
+.prose-md h2,
+.prose-md h3,
+.prose-md h4 {
+  font-family: var(--font-display);
+  font-weight: 650;
+  line-height: 1.25;
+  margin-top: 1.2em;
+}
+.prose-md h1 {
+  font-size: 1.35em;
+}
+.prose-md h2 {
+  font-size: 1.18em;
+}
+.prose-md h3 {
+  font-size: 1.05em;
+}
+.prose-md ul {
+  list-style: disc;
+  padding-left: 1.3em;
+}
+.prose-md ol {
+  list-style: decimal;
+  padding-left: 1.3em;
+}
+.prose-md li + li {
+  margin-top: 0.2em;
+}
+.prose-md a {
+  color: var(--signal);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-md code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--surface-3);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+.prose-md pre {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.8em 1em;
+  overflow-x: auto;
+  font-size: 0.86em;
+}
+.prose-md pre code {
+  background: none;
+  padding: 0;
+}
+.prose-md table {
+  border-collapse: collapse;
+  font-size: 0.92em;
+  display: block;
+  overflow-x: auto;
+}
+.prose-md th,
+.prose-md td {
+  border: 1px solid var(--line);
+  padding: 0.3em 0.6em;
+  text-align: left;
+}
+.prose-md blockquote {
+  border-left: 3px solid var(--line-strong);
+  padding-left: 0.9em;
+  color: var(--text-2);
+}
+
+/* Recharts: keep chrome recessive */
+.recharts-cartesian-grid line {
+  stroke: var(--line);
+}
+.recharts-text {
+  fill: var(--text-3);
+  font-size: 11px;
+}
+.recharts-tooltip-cursor {
+  fill: var(--surface-3);
+  opacity: 0.6;
+}
