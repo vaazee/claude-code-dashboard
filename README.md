@@ -55,6 +55,8 @@ Press ⌘K anywhere to jump to a session, project, skill or page, or to copy a r
 
 ## How it works
 
+For the full design, including the data flow, schema, security model and the reasoning behind each choice, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ```
 ~/.claude/**  ── fs.watch + polling ──▶ ingest ──▶ SQLite cache (~/.ccdash/index.db)
                                           │                 │

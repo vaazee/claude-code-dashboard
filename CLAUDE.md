@@ -1,6 +1,6 @@
 # ccdash — Claude Code dashboard
 
-A local web dashboard that reads `~/.claude` (live sessions, transcripts, skills, plugins, config) and shows it at http://localhost:4321. It only reads `~/.claude` and never writes to it. See README.md for the user-facing tour.
+A local web dashboard that reads `~/.claude` (live sessions, transcripts, skills, plugins, config) and shows it at http://localhost:4321. It only reads `~/.claude` and never writes to it. See README.md for the user-facing tour and ARCHITECTURE.md for the full design and rationale.
 
 ## Commands
 
